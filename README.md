@@ -80,10 +80,14 @@ rooms tourne sur des brokers publics gratuits.
 Tout flotte par-dessus le plateau :
 
 - **En haut à gauche** : la room, les joueurs et leur argent
-- **En haut à droite** : tes propriétés, avec construire / vendre / hypothéquer
-- **En bas à gauche** : le journal des actions
+- **En bas à droite** : tes propriétés, avec construire / vendre / hypothéquer
+- **En bas à gauche** : le chat (en ligne) puis le journal des actions
 - **En bas au centre** : à qui le tour, le dé, les échanges, le son
 - **Au milieu** : toute décision à prendre (acheter, enchérir, régler une dette)
+
+Sur le plateau à plat, la barre du bas flotte *à l'intérieur* de l'anneau,
+là où seraient les dés sur une vraie table : le plateau prend alors toute la
+hauteur de la fenêtre au lieu de s'arrêter au-dessus de la barre.
 
 Survoler un joueur assombrit le plateau sauf ses propriétés. Survoler une case
 allume son pays sans assombrir. Cliquer une case fait clignoter sa ligne dans
@@ -94,9 +98,12 @@ termes exacts de l'échange, même longtemps après.
 
 ## Le plateau
 
-**48 cases** : 11 par côté plus les quatre coins. Dix pays — Brésil, Israël,
+**48 cases** : 11 par côté plus les quatre coins. Dix pays — Brésil, Maroc,
 Inde, Italie, Allemagne, Chine, France, Japon, Royaume-Uni, États-Unis — quatre
 aéroports et trois compagnies (électricité, gaz, eau).
+
+Le Maroc, ce sont Casablanca, Marrakech et Rabat, avec l'aéroport CMN juste à
+côté.
 
 Sur chaque case, la couleur du pays est sur le bord extérieur et la couleur du
 propriétaire sur le bord intérieur — aux deux extrémités opposées, pour qu'un
@@ -125,6 +132,35 @@ peux être en 3D pendant que tes potes sont à plat.
 Et si la 3D ne démarre pas (accélération matérielle coupée), le jeu bascule
 tout seul sur le plateau à plat au lieu d'afficher une erreur.
 
+## Le mode équipes
+
+Réglage de room, **désactivé par défaut** : coche **Teams** dans les réglages
+avant de lancer. Chacun crée une équipe ou rejoint une équipe existante, avec
+son nom et son emoji. Deux équipes, trois, ou une bande contre un loup
+solitaire — un joueur sans équipe est un camp à lui tout seul. **Une fois la
+partie lancée, les alliances sont figées** : le moteur refuse tout changement
+d'équipe hors du lobby.
+
+Ce que ça change sur le plateau :
+
+- **Pas de loyer entre coéquipiers.** Tu tombes sur l'hôtel de ton pote, tu
+  repars sans payer.
+- **Vos propriétés se cumulent.** Pays, aéroports et compagnies comptent
+  ensemble : un pays réparti entre deux alliés est quand même un monopole, et
+  le loyer double comme tel. Chacun construit sur ses propres cases.
+- **Un coéquipier qui saute lègue tout** — cases, maisons et argent — à un
+  allié encore en vie, avant même le créancier.
+- **La dernière équipe debout gagne**, ensemble.
+
+En ligne, un onglet **chat d'équipe** apparaît à côté du chat général pour
+comploter tranquillement. À savoir : le canal d'équipe est masqué à l'écran des
+autres, mais c'est le navigateur de l'hôte qui fait tourner la partie et détient
+tout l'état — c'est de la discrétion, pas du chiffrement. Si l'hôte joue contre
+toi, écris tes plans ailleurs.
+
+Autour d'un seul écran, il n'y a personne à cacher : chaque siège s'assigne à
+la main avec les boutons **+ Pseudo** de chaque équipe.
+
 ## Les apparences
 
 Cinq formes de pion : la boule classique, un citron, une fraise, une flamme et
@@ -148,3 +184,4 @@ Console du navigateur :
 - `MOGUL.Board3D.Layout` — la géométrie du plateau
 - `MOGUL.setView('2d')` — changer de vue à la main
 - `MOGUL.Board` — la vue actuellement montée
+- `MOGUL.S.teams` — les équipes, `MOGUL.S.chat` — les messages
