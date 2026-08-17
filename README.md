@@ -1,6 +1,6 @@
 # MOGUL
 
-Jeu de plateau web en 3D. Un seul fichier : `index.html`.
+Jeu de plateau web, en 3D ou à plat. Un seul fichier : `index.html`.
 
 ---
 
@@ -77,7 +77,7 @@ rooms tourne sur des brokers publics gratuits.
 
 ## L'interface
 
-Tout flotte par-dessus la 3D :
+Tout flotte par-dessus le plateau :
 
 - **En haut à gauche** : la room, les joueurs et leur argent
 - **En haut à droite** : tes propriétés, avec construire / vendre / hypothéquer
@@ -94,6 +94,10 @@ termes exacts de l'échange, même longtemps après.
 
 ## Le plateau
 
+**48 cases** : 11 par côté plus les quatre coins. Dix pays — Brésil, Israël,
+Inde, Italie, Allemagne, Chine, France, Japon, Royaume-Uni, États-Unis — quatre
+aéroports et trois compagnies (électricité, gaz, eau).
+
 Sur chaque case, la couleur du pays est sur le bord extérieur et la couleur du
 propriétaire sur le bord intérieur — aux deux extrémités opposées, pour qu'un
 orange de pays ne se confonde jamais avec un rouge de joueur.
@@ -101,22 +105,38 @@ orange de pays ne se confonde jamais avec un rouge de joueur.
 Une propriété hypothéquée devient grise, se hachure, et affiche MORTGAGED sur
 sa barre de propriétaire.
 
+Rien dans le code ne compte les cases à la main : la taille de l'anneau est
+déduite des données (`TILES`, `PER_SIDE`, `CORNER_AT`), donc changer la carte
+ne demande pas de retoucher le moteur ni les deux plateaux.
+
+## Deux vues, un seul plateau
+
+Bouton **🀫 Flat board** / **🧊 3D board** en bas au centre :
+
+- **3D** — le plateau posé sur une table, en volume.
+- **2D** — le plateau à plat, comme sur richup.io : plus lisible, et ça tourne
+  sans carte graphique.
+
+Le choix est mémorisé. Les deux vues répondent aux mêmes appels et une seule
+est montée à la fois — survol, surbrillance et déplacements n'ont jamais deux
+propriétaires. Chacun choisit la sienne : ça n'a aucun effet sur la partie, tu
+peux être en 3D pendant que tes potes sont à plat.
+
+Et si la 3D ne démarre pas (accélération matérielle coupée), le jeu bascule
+tout seul sur le plateau à plat au lieu d'afficher une erreur.
+
 ## Les apparences
 
 Cinq formes de pion : la boule classique, un citron, une fraise, une flamme et
-un tourbillon. Chacune existe en vraie géométrie 3D sur le plateau et en icône
-assortie dans le lobby. Couleur et forme se choisissent séparément.
+un tourbillon. Chacune existe en vraie géométrie 3D sur le plateau, en pion à
+plat sur le plateau 2D, et en icône assortie dans le lobby — les trois montrent
+toujours la même chose. Couleur et forme se choisissent séparément.
 
 ## Le son
 
 Dés, déplacements, achats, argent, cartes, constructions, échanges. Tout est
 synthétisé à la volée, aucun fichier audio. Bouton **Sound** pour couper, le
 choix est mémorisé.
-
-## Si la 3D ne démarre pas
-
-Le jeu affiche un message clair au lieu d'une page vide. C'est presque toujours
-l'accélération matérielle désactivée dans le navigateur.
 
 ## Debug
 
@@ -126,3 +146,5 @@ Console du navigateur :
 - `MOGUL.S.log` — le journal, avec le détail des échanges
 - `MOGUL.act({type:'roll'})` — déclencher une action à la main
 - `MOGUL.Board3D.Layout` — la géométrie du plateau
+- `MOGUL.setView('2d')` — changer de vue à la main
+- `MOGUL.Board` — la vue actuellement montée
