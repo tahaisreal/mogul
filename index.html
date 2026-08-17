@@ -2843,7 +2843,7 @@ function renderPlayerPanel(slot) {
     const chip = el('div', 'card roomchip');
     const peers = Net.peerCount ? Net.peerCount() : 0;
     chip.appendChild(el('div', 'roomcode',
-      `Room <b>${esc(net.code)}</b><span class="pmeta"> · ${peers} connected</span>`));
+      `Room <b>${esc(Net.short())}</b><span class="pmeta"> · ${peers} connected</span>`));
     const copy = el('button', 'btn', 'Copy invite link');
     copy.onclick = async () => {
       const link = Net.inviteLink();
@@ -2856,7 +2856,7 @@ function renderPlayerPanel(slot) {
     slot.appendChild(chip);
   } else if (net && net.mode === 'guest') {
     const chip = el('div', 'card roomchip');
-    chip.appendChild(el('div', 'roomcode', `Room <b>${esc(net.code)}</b>`));
+    chip.appendChild(el('div', 'roomcode', `Room <b>${esc(Net.short())}</b>`));
     slot.appendChild(chip);
   }
 
@@ -3577,7 +3577,7 @@ function renderLobby() {
   const urlCode = Net.codeFromURL();
   if (urlCode && !net) {
     const j = el('div', 'card joinbox');
-    j.appendChild(el('h3', '', `Join room ${esc(urlCode)}`));
+    j.appendChild(el('h3', '', `Join room ${esc(urlCode.slice(0, 5))}`));
     const jn = el('input'); jn.type = 'text'; jn.maxLength = 14;
     jn.value = localStorage.getItem('mogul.name') || '';
     jn.placeholder = 'Your name';
@@ -3588,7 +3588,6 @@ function renderLobby() {
       localStorage.setItem('mogul.name', nm);
       Net.join(urlCode, nm);
     };
-    j.appendChild(relayField());
     jn.onkeydown = (e) => { if (e.key === 'Enter') go.click(); };
     j.append(jn, go);
     if (Net.status === 'error') j.appendChild(el('div', 'neterr', esc(Net.error)));
@@ -3709,8 +3708,8 @@ function connectionPanel() {
   if (!net) {
     const relay = Net.relayURL();
     box.appendChild(el('div', 'pmeta',
-      relay ? 'A relay server is configured — rooms will use it.'
-            : 'Peer-to-peer by default. Add a relay below if your network blocks WebRTC.'));
+      relay ? 'Your own relay server is configured — rooms will use it.'
+            : 'You get a link. Your friends click it. Nothing to install, and no setup on anyone\'s side.'));
 
     const b = el('button', 'btn primary wide', '🌐 Create an online room');
     b.style.marginTop = '8px';
@@ -3722,13 +3721,14 @@ function connectionPanel() {
       const again = el('button', 'btn wide', '↻ Try again');
       again.onclick = () => Net.retry();
       box.appendChild(again);
+      box.appendChild(relayField());
     }
-    box.appendChild(relayField());
     return box;
   }
 
   if (net.mode === 'host') {
-    box.appendChild(el('h3', '', `Room ${esc(net.code)} · ${net.transport === 'relay' ? 'relay' : 'peer-to-peer'}`));
+    const how = net.transport === 'relay' ? 'your relay' : net.transport === 'p2p' ? 'peer-to-peer' : 'shared link';
+    box.appendChild(el('h3', '', `Room ${esc(Net.short())} · ${how}`));
     const link = Net.inviteLink();
     const row = el('div', 'linkrow');
     const inp = el('input'); inp.type = 'text'; inp.readOnly = true; inp.value = link;
@@ -3746,7 +3746,7 @@ function connectionPanel() {
     return box;
   }
 
-  box.appendChild(el('h3', '', `Room ${esc(net.code)}`));
+  box.appendChild(el('h3', '', `Room ${esc(Net.short())}`));
   if (Net.status === 'open') {
     box.appendChild(el('div', 'pmeta', 'Connected. Waiting for the host to start.'));
     return box;
@@ -3757,8 +3757,13 @@ function connectionPanel() {
     again.style.marginTop = '10px';
     again.onclick = () => Net.retry();
     box.appendChild(again);
+    if (net.transport !== 'channel') {
+      const viaChannel = el('button', 'btn wide', '🛟 Join over the shared link instead');
+      viaChannel.onclick = () => Net.retry('channel');
+      box.appendChild(viaChannel);
+    }
     if (Net.relayURL() && net.transport !== 'relay') {
-      const viaRelay = el('button', 'btn wide', '🛟 Use the relay instead');
+      const viaRelay = el('button', 'btn wide', '🛟 Use my relay instead');
       viaRelay.onclick = () => Net.retry('relay');
       box.appendChild(viaRelay);
     }
@@ -3801,7 +3806,7 @@ function relayField() {
     renderLobby();
   };
   body.append(
-    el('div', 'pmeta', 'Paste the address of a relay server. It forwards messages only — the game still runs in the host browser.'),
+    el('div', 'pmeta', 'Optional. Rooms already work without this. Paste your own relay server only if you would rather not share a public broker — see relay/ in the repo.'),
     inp, save);
   wrap.append(toggle, body);
   return wrap;
@@ -3890,12 +3895,15 @@ function boot() {
    referee: guests send actions, the host applies them with the same
    engine and broadcasts the result.
 
-     p2p    WebRTC via PeerJS. No server, but it dies wherever WebRTC
-            is blocked — VPNs, proxies and some corporate networks.
-     relay  A tiny WebSocket server that just forwards messages. Works
-            anywhere a website works, at the cost of hosting it.
+     channel  The default. A room is a topic on a free public MQTT
+              broker — plain WSS, so it works wherever a website does,
+              and there is nothing to deploy or configure.
+     p2p      WebRTC via PeerJS. Lower latency, but it dies wherever
+              WebRTC is blocked — VPNs, proxies, some networks.
+     relay    Your own WebSocket server (see relay/), if you would
+              rather not share a public broker.
 
-   The relay is a message bus, not a referee: it never sees the rules.
+   None of the three is a referee: they carry bytes and never see a rule.
    ============================================================ */
 
 const Net = (() => {
@@ -4030,9 +4038,11 @@ const Net = (() => {
     });
   }
 
+  /* Twelve characters: the first five are the room's name, the rest keep the
+     room unguessable — public brokers are shared, and a topic is public. */
   function makeCode() {
     const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    return Array.from({ length: 5 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
+    return Array.from({ length: 12 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
   }
 
   async function p2pHost(code) {
@@ -4049,7 +4059,7 @@ const Net = (() => {
 
     const broker = setTimeout(() => {
       if (api.status === 'signalling') {
-        setStatus('error', 'The matchmaking service did not answer. Try again, or use a relay server.');
+        setStatus('error', 'The matchmaking service did not answer. Try again — rooms normally open over the shared link instead.');
       }
     }, BROKER_TIMEOUT);
 
@@ -4079,7 +4089,7 @@ const Net = (() => {
 
     const broker = setTimeout(() => {
       if (!settled && api.status === 'signalling') {
-        setStatus('error', 'The matchmaking service did not answer. Try again, or ask the host for a relay link.');
+        setStatus('error', 'The matchmaking service did not answer. Try again, or join over the shared link instead.');
       }
     }, BROKER_TIMEOUT);
 
@@ -4107,7 +4117,203 @@ const Net = (() => {
   }
 
   /* ============================================================
-     transport: WebSocket relay
+     transport: public channel (MQTT over WebSocket)
+
+     Public brokers run these for anyone to use, so nobody deploys
+     anything: a room is a topic, the host is still the referee.
+     It is plain WSS, so it survives everything that kills WebRTC.
+
+     Topics, all under the room key:
+       <key>/open   retained "1" — proof the room exists
+       <key>/host   guests -> host
+       <key>/all    host -> everyone
+       <key>/g/<id> host -> one guest
+     ============================================================ */
+
+  const CHANNELS = [
+    { id: 'e', url: 'wss://broker.emqx.io:8084/mqtt' },
+    { id: 'h', url: 'wss://broker.hivemq.com:8884/mqtt' },
+  ];
+  const CHUNK = 12000;          // brokers dislike huge frames, so payloads are split
+  const OPEN_TIMEOUT = 3500;    // waiting for the room marker
+
+  const te = new TextEncoder(), td = new TextDecoder();
+  const rnd = (n) => Array.from({ length: n }, () => 'abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random() * 36)]).join('');
+
+  /* --- MQTT 3.1.1, only the four packets this game needs --- */
+  function vlen(n) { const o = []; do { let b = n % 128; n = Math.floor(n / 128); if (n > 0) b |= 128; o.push(b); } while (n > 0); return o; }
+  function mstr(s) { const b = te.encode(s); return [b.length >> 8, b.length & 255, ...b]; }
+  function mpk(type, flags, body) {
+    const head = [(type << 4) | flags, ...vlen(body.length)];
+    const out = new Uint8Array(head.length + body.length);
+    out.set(head); out.set(body, head.length);
+    return out;
+  }
+  function connectPkt(clientId, will) {
+    let flags = 0x02;                                  // clean session
+    const tail = [];
+    if (will) { flags |= 0x04 | 0x20; tail.push(...mstr(will.topic), ...mstr(will.payload)); }
+    return mpk(1, 0, [...mstr('MQTT'), 4, flags, 0x00, 0x3c, ...mstr(clientId), ...tail]);
+  }
+  const subPkt = (topics) => mpk(8, 2, [0, 1, ...topics.flatMap(t => [...mstr(t), 0])]);
+  function pubPkt(topic, payload, retain) {
+    const t = mstr(topic), p = te.encode(payload);
+    const body = new Uint8Array(t.length + p.length);
+    body.set(t); body.set(p, t.length);
+    return mpk(3, retain ? 1 : 0, body);
+  }
+
+  /* A packet can span WebSocket frames, and one frame can hold several. */
+  function mqttReader(onPacket) {
+    let buf = new Uint8Array(0);
+    return (chunk) => {
+      const next = new Uint8Array(buf.length + chunk.length);
+      next.set(buf); next.set(chunk, buf.length);
+      buf = next;
+      for (;;) {
+        if (buf.length < 2) return;
+        let mult = 1, len = 0, j = 1, b;
+        do {
+          if (j >= buf.length) return;                 // length field not all here yet
+          b = buf[j++]; len += (b & 127) * mult; mult *= 128;
+        } while (b & 128);
+        if (buf.length < j + len) return;              // body still on the way
+        const type = buf[0] >> 4, flags = buf[0] & 15, body = buf.subarray(j, j + len);
+        if (type === 3) {
+          const tl = (body[0] << 8) | body[1];
+          let p = 2 + tl;
+          if (flags & 6) p += 2;                       // QoS > 0 carries a packet id
+          onPacket({ type, topic: td.decode(body.subarray(2, 2 + tl)), payload: td.decode(body.subarray(p)) });
+        } else onPacket({ type });
+        buf = buf.subarray(j + len);
+      }
+    };
+  }
+
+  function mqttClient(url, will) {
+    return new Promise((resolve, reject) => {
+      let ws;
+      try { ws = new WebSocket(url, 'mqtt'); } catch (e) { return reject(new Error('This browser refused the connection.')); }
+      ws.binaryType = 'arraybuffer';
+
+      const handlers = [];
+      const parts = new Map();          // message id -> chunks, so senders never interleave
+      let ping = null, closed = false;
+      const timer = setTimeout(() => { try { ws.close(); } catch (e) {} reject(new Error('timeout')); }, CHANNEL_TIMEOUT);
+
+      const feed = mqttReader((p) => {
+        if (p.type === 2) {             // CONNACK
+          clearTimeout(timer);
+          ping = setInterval(() => { if (!closed) try { ws.send(mpk(12, 0, [])); } catch (e) {} }, 30000);
+          resolve({
+            sub: (...topics) => ws.send(subPkt(topics)),
+            pub: (topic, payload, retain) => {
+              const id = rnd(6);
+              if (payload.length <= CHUNK) return ws.send(pubPkt(topic, `${id}/0/1|${payload}`, retain));
+              const n = Math.ceil(payload.length / CHUNK);
+              for (let i = 0; i < n; i++) ws.send(pubPkt(topic, `${id}/${i}/${n}|` + payload.slice(i * CHUNK, (i + 1) * CHUNK), retain));
+            },
+            on: (fn) => handlers.push(fn),
+            onclose: (fn) => { ws.addEventListener('close', fn); },
+            close: () => { closed = true; clearInterval(ping); try { ws.close(); } catch (e) {} },
+          });
+          return;
+        }
+        if (p.type !== 3) return;
+        const bar = p.payload.indexOf('|');
+        if (bar < 0) return handlers.forEach(fn => fn(p.topic, p.payload));   // retained marker
+        const [id, i, n] = p.payload.slice(0, bar).split('/');
+        const rest = p.payload.slice(bar + 1);
+        if (Number(n) === 1) return handlers.forEach(fn => fn(p.topic, rest));
+        const acc = parts.get(id) || [];
+        acc[Number(i)] = rest;
+        parts.set(id, acc);
+        if (acc.filter(x => x !== undefined).length === Number(n)) {
+          parts.delete(id);
+          handlers.forEach(fn => fn(p.topic, acc.join('')));
+        }
+      });
+
+      ws.onopen = () => ws.send(connectPkt('mogul' + rnd(12), will));
+      ws.onmessage = (e) => feed(new Uint8Array(e.data));
+      ws.onerror = () => { clearTimeout(timer); reject(new Error('unreachable')); };
+      ws.onclose = () => { closed = true; clearInterval(ping); };
+    });
+  }
+
+  const frame = (obj) => rnd(6) + '/0/1|' + JSON.stringify(obj);   // pre-framed, for a last will
+
+  /* The broker named by the link first, then the rest — each tried once. */
+  const brokerOrder = (prefer) =>
+    CHANNELS.filter(c => c.id === prefer).concat(CHANNELS.filter(c => c.id !== prefer));
+
+  async function channelHost(key, prefer) {
+    const list = brokerOrder(prefer);
+    let last = null;
+    for (const b of list) {
+      try {
+        setStatus('connecting');
+        const c = await mqttClient(b.url, { topic: `mogul/${key}/open`, payload: '' });
+        c.sub(`mogul/${key}/host`);
+        c.pub(`mogul/${key}/open`, '1', true);
+
+        closeAll = () => { try { c.pub(`mogul/${key}/open`, '', true); c.close(); } catch (e) {} };
+        send = (to, data) => c.pub(to ? `mogul/${key}/g/${to}` : `mogul/${key}/all`, JSON.stringify(data));
+
+        c.on((topic, payload) => {
+          if (!topic.endsWith('/host')) return;
+          let m; try { m = JSON.parse(payload); } catch (e) { return; }
+          if (!m || !m.from) return;
+          if (m.bye) return onGuestGone(m.from);
+          if (m.msg && m.msg.t === 'hello' && !peers.has(m.from)) { peers.add(m.from); renderLobby(); }
+          if (m.msg) onGuestMessage(m.from, m.msg);
+        });
+        c.onclose(() => { if (api.status === 'open') setStatus('error', 'The room connection dropped. Press "Try again" — your friends can rejoin with the same names.'); });
+
+        return b.id;
+      } catch (e) { last = e; }
+    }
+    throw new Error('No public channel answered' + (last ? ` (${last.message})` : '') + '. Check you are online, or try again.');
+  }
+
+  async function channelJoin(key, name, prefer) {
+    const list = brokerOrder(prefer);
+    let refused = null;
+    for (const b of list) {
+      let c;
+      try {
+        setStatus('connecting');
+        const me = rnd(8);
+        c = await mqttClient(b.url, { topic: `mogul/${key}/host`, payload: frame({ from: me, bye: true }) });
+
+        const open = await new Promise((resolve) => {
+          const t = setTimeout(() => resolve(false), OPEN_TIMEOUT);
+          c.on((topic, payload) => {
+            if (topic.endsWith('/open')) { clearTimeout(t); resolve(payload === '1'); }
+          });
+          c.sub(`mogul/${key}/open`, `mogul/${key}/all`, `mogul/${key}/g/${me}`);
+        });
+        if (!open) { c.close(); refused = new Error('No room with that code — the host may have closed the tab.'); continue; }
+
+        closeAll = () => { try { c.pub(`mogul/${key}/host`, JSON.stringify({ from: me, bye: true })); c.close(); } catch (e) {} };
+        send = (_to, data) => c.pub(`mogul/${key}/host`, JSON.stringify({ from: me, msg: data }));
+
+        c.on((topic, payload) => {
+          if (topic.endsWith('/open')) { if (payload === '') setStatus('error', 'The host closed the room.'); return; }
+          let m; try { m = JSON.parse(payload); } catch (e) { return; }
+          onHostMessage(m);
+        });
+        c.onclose(() => { if (api.status === 'open') setStatus('error', 'The connection dropped. Reload the link with the same name to get your seat back.'); });
+
+        send(null, { t: 'hello', name });
+        return b.id;
+      } catch (e) { try { c && c.close(); } catch (e2) {} refused = e; }
+    }
+    throw refused || new Error('No public channel answered. Check you are online, or try again.');
+  }
+
+  /* ============================================================
+     transport: WebSocket relay (optional, for a server you own)
      ============================================================ */
 
   function relayConnect(url, code, role, name) {
@@ -4149,11 +4355,22 @@ const Net = (() => {
 
   /* ---------- entry points ---------- */
 
+  let broker = null;   // which public channel this room lives on
+
+  function brokerFromURL() {
+    return new URLSearchParams(location.search).get('b') || null;
+  }
+
+  function query(transport) {
+    if (transport === 'relay') return '?relay=' + encodeURIComponent(relayURL());
+    if (transport === 'channel' && broker) return '?b=' + broker;
+    return '';
+  }
+
   function finishHost(code, transport) {
     api.mode = 'host'; api.transport = transport; api.code = code;
     net = api; LOCAL_ALL = false;
-    const q = transport === 'relay' ? '?relay=' + encodeURIComponent(relayURL()) : '';
-    history.replaceState(null, '', location.pathname + q + '#' + code);
+    history.replaceState(null, '', location.pathname + query(transport) + '#' + code);
     setStatus('open');
   }
 
@@ -4163,17 +4380,25 @@ const Net = (() => {
     setStatus('open');
   }
 
+  /* Default is the public channel: it needs no setup and no WebRTC. */
   api.host = async function (preferred) {
     const code = makeCode();
     const relay = relayURL();
-    const want = preferred || (relay ? 'relay' : 'p2p');
+    const want = preferred || (relay ? 'relay' : 'channel');
     try {
       if (want === 'relay' && relay) {
         setStatus('connecting');
         await relayConnect(relay, code, 'host');
         finishHost(code, 'relay');
-      } else {
+      } else if (want === 'p2p') {
         await p2pHost(code);
+      } else {
+        try {
+          broker = await channelHost(code, brokerFromURL());
+          finishHost(code, 'channel');
+        } catch (e) {
+          await p2pHost(code);          // last resort if no broker answered
+        }
       }
     } catch (e) {
       setStatus('error', e.message || String(e));
@@ -4183,14 +4408,17 @@ const Net = (() => {
   api.join = async function (code, name, preferred) {
     myName = name;
     const relay = relayURL();
-    const want = preferred || (relay ? 'relay' : 'p2p');
+    const want = preferred || (relay ? 'relay' : 'channel');
     try {
       if (want === 'relay' && relay) {
         setStatus('connecting');
         await relayConnect(relay, code, 'guest', name);
         finishGuest(code, 'relay');
-      } else {
+      } else if (want === 'p2p') {
         await p2pJoin(code, name);
+      } else {
+        broker = await channelJoin(code, name, brokerFromURL());
+        finishGuest(code, 'channel');
       }
     } catch (e) {
       setStatus('error', e.message || String(e));
@@ -4245,9 +4473,7 @@ const Net = (() => {
 
   async function explainStall() {
     const d = await api.diagnose();
-    const escape = relayURL()
-      ? ' A relay server is configured — press "Use the relay instead".'
-      : ' Ask the host for a relay link, which does not need WebRTC at all.';
+    const escape = ' Press "Join over the shared link instead" — that route needs no WebRTC at all.';
     if (!d.webrtc) return 'This browser has no WebRTC support.' + escape;
     if (d.error) return `WebRTC refused to start (${d.error}).` + escape;
     if (d.host === 0) {
@@ -4264,16 +4490,14 @@ const Net = (() => {
 
   function friendly(err) {
     if (err.type === 'peer-unavailable') return 'No room with that code. Check the link, or ask the host to reopen the room.';
-    if (err.type === 'network' || err.type === 'server-error') return 'The matchmaking service is unreachable. Try a relay server.';
+    if (err.type === 'network' || err.type === 'server-error') return 'The matchmaking service is unreachable. Join over the shared link instead.';
     if (err.type === 'browser-incompatible') return 'This browser does not support peer-to-peer play.';
     return err.message || 'Connection failed.';
   }
 
-  api.inviteLink = () => {
-    const q = api.transport === 'relay' ? '?relay=' + encodeURIComponent(relayURL()) : '';
-    return location.origin + location.pathname + q + '#' + api.code;
-  };
-  api.codeFromURL = () => (location.hash || '').replace('#', '').toUpperCase().slice(0, 5) || null;
+  api.inviteLink = () => location.origin + location.pathname + query(api.transport) + '#' + api.code;
+  api.codeFromURL = () => (location.hash || '').replace('#', '').toUpperCase().slice(0, 12) || null;
+  api.short = () => String(api.code || '').slice(0, 5);   // the half worth reading aloud
 
   return api;
 })();

@@ -29,8 +29,9 @@ même dépôt sans rien casser, Pages l'ignore.
 ## 2. Lancer une partie
 
 1. Tu ouvres `https://TON_PSEUDO.github.io/mogul/`
-2. **Create an online room** → un lien apparaît, genre `.../mogul/#K7M2Q`
-3. Tu l'envoies. Chacun met son pseudo et clique **Join**.
+2. **Create an online room** → un lien apparaît, genre `.../mogul/?b=e#K7M2QX8T3N94`
+3. Tu l'envoies. Chacun met son pseudo et clique **Join**. Rien d'autre à faire :
+   pas de compte, pas d'installation, pas de réglage.
 4. Quand tout le monde est là : **Start game**.
 
 Le code de la room reste affiché en haut à gauche pendant la partie, avec un
@@ -38,41 +39,29 @@ bouton pour recopier le lien — pratique pour un retardataire.
 
 Testé de 2 à 8 joueurs. Le maximum se règle dans les réglages avant de lancer.
 
-### Si le pair-à-pair ne passe pas
+### Si un pote reste bloqué
 
-Certains réseaux et navigateurs bloquent WebRTC purement et simplement — le
-VPN intégré d'Opera et de Brave laisse notamment un réglage actif même une
-fois éteint. Dans ce cas aucun réglage du jeu ne peut aider : il faut passer
-par un relais.
+Les rooms passent par un canal public : un simple WebSocket, comme n'importe
+quel site. Rien à installer, rien à régler, et ça marche même là où WebRTC est
+bloqué (VPN d'Opera ou de Brave, proxy d'entreprise).
 
-Le dossier `relay/` contient un petit serveur à déployer gratuitement en cinq
-minutes (voir `relay/DEPLOY.md`). Une fois son adresse collée dans
-**⚙ Use a relay server**, le lien d'invitation l'embarque : tes potes n'ont
-rien à configurer.
+Si personne n'arrive à ouvrir de room, c'est que les deux brokers publics sont
+injoignables — vérifie ta connexion et réessaie. Le jeu bascule alors tout seul
+en pair-à-pair, et propose **Join over the shared link instead** dans l'autre
+sens si le pair-à-pair coince.
 
-Côté Opera précisément : **Réglages → Confidentialité → WebRTC**, remets la
-gestion des IP sur la valeur par défaut, puis recharge.
+Le bouton **Run a connection test** reste là pour diagnostiquer WebRTC.
 
-### Si un pote reste bloqué sur "Connecting…"
+### Deux détails sur le lien
 
-Après 14 secondes, le jeu arrête d'attendre et explique ce qui cloche. Il y a
-aussi un bouton **Run a connection test** qui répond en clair :
+Le lien contient une clé de 12 caractères : les 5 premiers sont le nom de la
+room affiché à l'écran, les 7 autres la rendent indevinable. Les brokers sont
+publics et un canal se devine, pas une clé de 12 caractères. Envoie le lien
+entier, pas seulement le code.
 
-- `WebRTC no` → le navigateur ne sait pas faire de pair-à-pair
-- `local candidates 0` → **quelque chose bloque WebRTC**. C'est presque
-  toujours le VPN intégré du navigateur (Opera, Brave) ou une extension de
-  confidentialité. Coupe-le pour cette page et recharge.
-- `public 0` mais `local` > 0 → les serveurs STUN sont injoignables (VPN ou
-  pare-feu strict). Vos potes sur le même wifi passeront, les autres non.
-- tout à zéro sauf WebRTC → la room n'est plus ouverte, l'hôte a fermé l'onglet
-
-Le compteur **"N guests connected"** côté hôte permet de distinguer un pote qui
-n'a jamais atteint la room d'un pote bloqué plus loin.
-
-Si deux personnes n'arrivent jamais à se connecter alors que le test est bon
-des deux côtés, c'est un NAT symétrique : il faut un serveur TURN. L'endroit
-où mettre ses identifiants est marqué en commentaire dans le fichier, cherche
-`turn:YOUR_HOST`.
+Si tu préfères ne pas partager un broker public, le dossier `relay/` contient
+un petit serveur à héberger toi-même (voir `relay/DEPLOY.md`). Une fois son
+adresse collée dans **⚙ Use a relay server**, le lien d'invitation l'embarque.
 
 ### Deux choses à savoir
 
@@ -81,8 +70,8 @@ où mettre ses identifiants est marqué en commentaire dans le fichier, cherche
 - **Déconnexion :** rouvrir le lien avec *exactement* le même pseudo récupère
   la place, l'argent et les propriétés.
 
-Aucun serveur à payer : la connexion est en pair-à-pair (WebRTC), GitHub Pages
-ne sert que le fichier.
+Aucun serveur à payer : GitHub Pages ne sert que le fichier, et le canal des
+rooms tourne sur des brokers publics gratuits.
 
 ---
 
