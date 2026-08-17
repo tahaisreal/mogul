@@ -62,6 +62,32 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-2);
 .hud-slot.bl{bottom:16px;left:16px;width:310px}
 .hud-slot.bc{bottom:18px;left:50%;transform:translateX(-50%);align-items:center}
 .hud-slot.mid{top:46%;left:50%;transform:translate(-50%,-50%);align-items:center;width:min(400px,86vw)}
+/* The middle of the board, where the table would be: whose turn it is, then
+   what just happened, fading out as it gets older. */
+.hud-slot.cc{
+  top:var(--centertop,54%);left:50%;transform:translateX(-50%);
+  width:min(540px,54vw);align-items:center;gap:6px;pointer-events:none;text-align:center;
+}
+.hud-slot.cc>*{pointer-events:none}
+.centerturn{font-size:15px;font-weight:800;display:flex;align-items:center;gap:8px;justify-content:center}
+.centerlog{display:flex;flex-direction:column;gap:4px;width:100%;overflow:hidden}
+.centerlog div{font-size:12.5px;line-height:1.45;animation:logIn .3s var(--ease)}
+/* The middle of the 3D board is pale felt and the flat one is dark, so the
+   same lines are printed dark on one and light on the other. */
+#hud .centerturn{color:#1d1712;text-shadow:0 1px 7px rgba(255,255,255,.7)}
+#hud .centerlog div{color:#2b241d;text-shadow:0 1px 6px rgba(255,255,255,.65)}
+#hud .centerlog div .ltag,#hud .centerturn .ltag{color:#12100d}
+#hud .centerlog .ltile{color:#42352a}
+#hud.flatview .centerlog .ltile{color:#cfcbee}
+#hud.flatview .centerturn{color:var(--ink);text-shadow:0 2px 10px rgba(0,0,0,.8)}
+#hud.flatview .centerlog div{color:#cdbcab;text-shadow:0 1px 8px rgba(0,0,0,.85)}
+#hud.flatview .centerlog div .ltag,#hud.flatview .centerturn .ltag{color:#f0e6da}
+.centerlog div .lref{pointer-events:auto}
+#hud.flatview .centerlog div:nth-child(1){color:#f0e6da}
+#hud .centerlog div:nth-child(1){color:#14110d}
+.centerlog div:nth-child(n+4){opacity:.72}
+.centerlog div:nth-child(n+6){opacity:.46}
+.centerlog div:nth-child(n+8){opacity:.24}
 
 /* ---------------- board ---------------- */
 #board{
@@ -256,6 +282,7 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-2);
 #scene.flat{display:flex;align-items:center;justify-content:center;background:var(--bg);overflow:hidden}
 #hud.flatview .hud-slot.bc{bottom:var(--barlift,18px)}
 #scene.flat #board{transform:none}
+#scene.flat #center{justify-content:flex-start;padding-top:5%}
 /* country band on the outer edge, owner bar on the inner one — opposite ends,
    so a country colour can never be mistaken for a player colour */
 .tile .band{position:absolute;z-index:1}
@@ -764,6 +791,7 @@ input[type=text]:focus,input[type=number]:focus{border-color:var(--accent);outli
   <div id="hud">
     <div class="hud-slot tl" id="hudPlayers"></div>
     <div class="hud-slot br" id="hudProps"></div>
+    <div class="hud-slot cc" id="hudCenter"></div>
     <div class="hud-slot bl" id="hudLog"></div>
     <div class="hud-slot bc" id="hudBar"></div>
     <div class="hud-slot mid" id="hudPrompt"></div>
@@ -3178,7 +3206,11 @@ const Board2D = (() => {
   api.unmount = function () {
     if (walkTimer) { clearTimeout(walkTimer); walkTimer = null; }
     const hud = document.querySelector('#hud');
-    if (hud) { hud.classList.remove('flatview'); hud.style.removeProperty('--barlift'); }
+    if (hud) {
+      hud.classList.remove('flatview');
+      hud.style.removeProperty('--barlift');
+      hud.style.removeProperty('--centertop');
+    }
     if (host) { host.innerHTML = ''; host.classList.remove('flat'); }
     tileEls = []; tokenEls = {}; dieEls = [];
     hoverTile = -1; focusP = null; focusG = null;
@@ -3207,6 +3239,12 @@ const Board2D = (() => {
     const lift = Math.max(12, Math.round(window.innerHeight - rect.bottom + depth + 10));
     hud.classList.add('flatview');
     hud.style.setProperty('--barlift', lift + 'px');
+    // the turn line and the log hang directly off the dice
+    const dice = centerEl && centerEl.querySelector('#dice');
+    if (dice) {
+      const top = Math.round(dice.getBoundingClientRect().bottom + 14);
+      hud.style.setProperty('--centertop', top + 'px');
+    }
   }
 
   /* A name that does not fit steps down a little rather than snapping a word
@@ -3228,6 +3266,7 @@ const Board2D = (() => {
 
   api.update = function () {
     if (!api.ready) return;
+    if (logoEl) logoEl.style.display = S.phase === 'lobby' ? '' : 'none';
     syncTiles();
     syncTokens();
     // no dice on the felt until someone has actually rolled
@@ -3417,12 +3456,13 @@ const lastCash = {};
 function renderHUD() {
   const players = $('#hudPlayers'), props = $('#hudProps');
   const logSlot = $('#hudLog'), bar = $('#hudBar'), prompt = $('#hudPrompt');
+  const centre = $('#hudCenter');
   if (!players) return;
-  [players, props, logSlot, bar, prompt].forEach(n => n.innerHTML = '');
+  [players, props, logSlot, bar, prompt, centre].forEach(n => n.innerHTML = '');
 
   renderPlayerPanel(players);
+  renderCenterLog(centre);
   renderChatPanel(logSlot);
-  renderLogPanel(logSlot);
   renderMyProperties(props);
   renderTradePanel(props);
   renderBar(bar);
@@ -3553,23 +3593,36 @@ function renderChatPanel(slot) {
   if (chatFocused) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
 }
 
-function renderLogPanel(slot) {
-  const card = el('div', 'card');
-  const box = el('div', 'logbox');
-  S.log.slice(-9).forEach(l => {
-    const line = el('div', '', l.html);
+/* Newest first, straight down the middle of the board. */
+function renderCenterLog(slot) {
+  const cur = Engine.current(S);
+  const line = el('div', 'centerturn');
+  if (S.phase === 'ended') {
+    const w = Engine.P(S, S.winner);
+    const wt = S.winnerTeam ? Engine.findTeam(S, S.winnerTeam) : null;
+    line.innerHTML = wt
+      ? `🏆 ${wt.emoji} <b>${esc(wt.name)}</b> wins together!`
+      : `🏆 <b>${w ? esc(w.name) : '—'}</b> wins!`;
+  } else if (cur) {
+    line.innerHTML = `<span class="ltag"><i style="background:${cur.color}"></i>${esc(cur.name)}</span>
+      ${cur.id === actorId() ? '— your move' : 'is playing…'}`;
+  }
+  if (S.phase !== 'lobby') slot.appendChild(line);
+
+  const box = el('div', 'centerlog');
+  S.log.slice(-9).reverse().forEach(l => {
+    const row = el('div', '', l.html);
     if (l.meta && l.meta.kind === 'trade') {
-      const ref = line.querySelector('.lref');
+      const ref = row.querySelector('.lref');
       if (ref) {
         ref.classList.add('live');
         ref.addEventListener('mouseenter', () => showTradeTip(ref, l.meta.trade));
         ref.addEventListener('mouseleave', hideTradeTip);
       }
     }
-    box.appendChild(line);
+    box.appendChild(row);
   });
-  card.appendChild(box);
-  slot.appendChild(card);
+  slot.appendChild(box);
 }
 
 /* the word "trade" in the log opens the exact terms that were offered */
@@ -3607,19 +3660,7 @@ function renderBar(slot) {
   const card = el('div', 'card');
   const cur = Engine.current(S);
 
-  const line = el('div', 'turnline');
-  if (S.phase === 'ended') {
-    const w = Engine.P(S, S.winner);
-    const wt = S.winnerTeam ? Engine.findTeam(S, S.winnerTeam) : null;
-    if (!renderBar.celebrated) { renderBar.celebrated = true; Sfx.win(); }
-    line.innerHTML = wt
-      ? `🏆 ${wt.emoji} <b>${esc(wt.name)}</b> wins together!`
-      : `🏆 <b>${w ? esc(w.name) : '—'}</b> wins!`;
-  } else if (cur) {
-    line.innerHTML = `<span class="ltag"><i style="background:${cur.color}"></i>${esc(cur.name)}</span>
-      ${cur.id === actorId() ? '— your move' : 'is playing…'}`;
-  }
-  card.appendChild(line);
+  if (S.phase === 'ended' && !renderBar.celebrated) { renderBar.celebrated = true; Sfx.win(); }
 
   const row = el('div', 'barrow');
   const acting = actorId();

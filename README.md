@@ -79,11 +79,14 @@ rooms tourne sur des brokers publics gratuits.
 
 Tout flotte par-dessus le plateau :
 
+- **Au milieu du plateau** : les dés, à qui le tour, puis le journal des
+  actions — le plus récent en haut, les anciens qui s'effacent en descendant
 - **En haut à gauche** : la room, les joueurs et leur argent
 - **En bas à droite** : tes propriétés, avec construire / vendre / hypothéquer
-- **En bas à gauche** : le chat (en ligne) puis le journal des actions
-- **En bas au centre** : à qui le tour, le dé, les échanges, le son
-- **Au milieu** : toute décision à prendre (acheter, enchérir, régler une dette)
+- **En bas à gauche** : le chat, en ligne uniquement
+- **En bas au centre** : lancer, échanger, couper le son, changer de vue
+- **Par-dessus le journal** : toute décision à prendre (acheter, enchérir,
+  régler une dette)
 
 Sur le plateau à plat, la barre du bas flotte *à l'intérieur* de l'anneau,
 là où seraient les dés sur une vraie table : le plateau prend alors toute la
