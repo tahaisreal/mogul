@@ -642,6 +642,14 @@ input[type=text]:focus,input[type=number]:focus{border-color:var(--accent);outli
 .roomcode{font-family:var(--display);font-size:13px;color:var(--muted);white-space:nowrap}
 .roomcode b{color:var(--accent-2);letter-spacing:1.5px;font-size:15px}
 .roomchip .btn{margin-left:auto;padding:8px 11px;font-size:12px}
+
+.connecting::after{
+  content:'';display:inline-block;width:9px;height:9px;margin-left:7px;
+  border:2px solid var(--muted);border-top-color:transparent;border-radius:50%;
+  animation:spin .8s linear infinite;vertical-align:-1px;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.neterr+.btn{margin-top:10px}
 </style>
 </head>
 <body>
@@ -2709,7 +2717,9 @@ function renderPlayerPanel(slot) {
   // hosts keep the invite handy: latecomers and reconnects both need it
   if (net && net.mode === 'host') {
     const chip = el('div', 'card roomchip');
-    chip.appendChild(el('div', 'roomcode', `Room <b>${esc(net.code)}</b>`));
+    const peers = Net.peerCount ? Net.peerCount() : 0;
+    chip.appendChild(el('div', 'roomcode',
+      `Room <b>${esc(net.code)}</b><span class="pmeta"> · ${peers} connected</span>`));
     const copy = el('button', 'btn', 'Copy invite link');
     copy.onclick = async () => {
       const link = Net.inviteLink();
@@ -3473,7 +3483,14 @@ function renderLobby() {
   }
 
   main.appendChild(connectionPanel());
-  main.appendChild(el('div', 'pmeta', net ? `Room ${net.room} — select your appearance` : 'Select your player appearance'));
+
+  // Until the host's state arrives, the seats and settings on this screen are
+  // this browser's own defaults — showing them would be a lie.
+  if (net && net.mode === 'guest' && Net.status !== 'open') {
+    lob.appendChild(main);
+    return;
+  }
+  main.appendChild(el('div', 'pmeta', 'Select your player appearance'));
 
   const sws = el('div', 'swatches');
   PLAYER_COLORS.forEach(c => {
@@ -3572,13 +3589,35 @@ function connectionPanel() {
       setTimeout(() => copy.textContent = 'Copy', 1600);
     };
     row.append(inp, copy);
-    box.append(row, el('div', 'pmeta', 'Send this to your friends. Keep this tab open — it runs the game.'));
+    const peers = Net.peerCount ? Net.peerCount() : 0;
+    box.append(row, el('div', 'pmeta',
+      `Send this to your friends. Keep this tab open — it runs the game.<br>
+       <b>${peers}</b> guest${peers === 1 ? '' : 's'} connected.`));
     return box;
   }
   box.appendChild(el('h3', '', `Room ${esc(net.code)}`));
-  box.appendChild(el('div', 'pmeta',
-    Net.status === 'open' ? 'Connected. Waiting for the host to start.' : 'Connecting…'));
-  if (Net.status === 'error') box.appendChild(el('div', 'neterr', esc(Net.error)));
+  if (Net.status === 'open') {
+    box.appendChild(el('div', 'pmeta', 'Connected. Waiting for the host to start.'));
+    return box;
+  }
+  if (Net.status === 'error') {
+    box.appendChild(el('div', 'neterr', esc(Net.error)));
+    const again = el('button', 'btn primary wide', '↻ Try again');
+    again.style.marginTop = '10px';
+    again.onclick = () => Net.retry();
+    box.appendChild(again);
+    const diag = el('button', 'linkbtn', 'Run a connection test');
+    diag.onclick = async () => {
+      diag.textContent = 'Testing…';
+      const d = await Net.diagnose();
+      diag.textContent = `WebRTC ${d.webrtc ? 'yes' : 'no'} · local candidates ${d.host} · public ${d.srflx}${d.error ? ' · ' + d.error : ''}`;
+    };
+    box.appendChild(diag);
+    return box;
+  }
+  const wait = el('div', 'pmeta connecting',
+    Net.status === 'stalled' ? 'Still trying to reach the host…' : 'Connecting…');
+  box.appendChild(wait);
   return box;
 }
 
@@ -3673,6 +3712,18 @@ function boot() {
 const Net = (() => {
   const PREFIX = 'mogul-v1-';
   const CDN = 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
+  const JOIN_TIMEOUT = 14000;   // ms before we stop waiting and explain why
+
+  /* Several STUN servers rather than one: if a network blocks a host, the
+     others still let the browser discover its public address. A TURN server
+     would also relay traffic through symmetric NATs, but there is no free one
+     worth depending on — add credentials here if a pair ever cannot connect. */
+  const ICE = [
+    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+    { urls: ['stun:stun2.l.google.com:19302', 'stun:stun3.l.google.com:19302'] },
+    // { urls: 'turn:YOUR_HOST:3478', username: '...', credential: '...' },
+  ];
+  const PEER_OPTS = { debug: 0, config: { iceServers: ICE } };
 
   let peer = null;
   let conns = [];        // host: one per guest
@@ -3715,7 +3766,7 @@ const Net = (() => {
     setStatus('loading');
 
     const code = makeCode();
-    peer = new window.Peer(PREFIX + code, { debug: 0 });
+    peer = new window.Peer(PREFIX + code, PEER_OPTS);
 
     peer.on('open', () => {
       api.mode = 'host';
@@ -3798,12 +3849,21 @@ const Net = (() => {
     LOCAL_ALL = false;
     setStatus('connecting');
 
-    peer = new window.Peer({ debug: 0 });
+    peer = new window.Peer(PEER_OPTS);
     peer.on('error', (err) => setStatus('error', friendly(err)));
+
+    let settled = false;
+    const stallTimer = setTimeout(async () => {
+      if (settled) return;
+      setStatus('stalled', 'Still trying to reach the host…');
+      setStatus('error', await explainStall());
+    }, JOIN_TIMEOUT);
 
     peer.on('open', () => {
       hostConn = peer.connect(PREFIX + code, { reliable: true });
       hostConn.on('open', () => {
+        settled = true;
+        clearTimeout(stallTimer);
         setStatus('open');
         hostConn.send({ t: 'hello', name });
       });
@@ -3816,8 +3876,70 @@ const Net = (() => {
           else { const l = document.querySelector('#lobby'); if (l) l.remove(); render(); }
         }
       });
-      hostConn.on('close', () => setStatus('error', 'The host closed the room.'));
+      hostConn.on('close', () => {
+        clearTimeout(stallTimer);
+        setStatus('error', 'The connection to the host dropped.');
+      });
+      hostConn.on('error', () => {
+        clearTimeout(stallTimer);
+        setStatus('error', 'The link to the host failed.');
+      });
     });
+  }
+
+  /* Gathers ICE candidates on their own to tell a blocked browser apart from
+     a merely unlucky network. Runs only when a connection has already failed. */
+  api.diagnose = function () {
+    return new Promise((resolve) => {
+      const out = { webrtc: false, host: 0, srflx: 0, relay: 0, error: '' };
+      const RTC = window.RTCPeerConnection || window.webkitRTCPeerConnection;
+      if (!RTC) return resolve(out);
+      out.webrtc = true;
+      let pc;
+      try {
+        pc = new RTC({ iceServers: ICE });
+        pc.createDataChannel('probe');
+      } catch (e) {
+        out.error = e.message || String(e);
+        return resolve(out);
+      }
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        try { pc.close(); } catch (e) {}
+        resolve(out);
+      };
+      pc.onicecandidate = (e) => {
+        if (!e.candidate) return finish();
+        const kind = (String(e.candidate.candidate).match(/ typ (\w+)/) || [])[1];
+        if (kind === 'host') out.host++;
+        else if (kind === 'srflx') out.srflx++;
+        else if (kind === 'relay') out.relay++;
+      };
+      setTimeout(finish, 6000);
+      pc.createOffer()
+        .then(o => pc.setLocalDescription(o))
+        .catch(e => { out.error = e.message || String(e); finish(); });
+    });
+  };
+
+  /* Turns a stalled connection into an explanation the player can act on. */
+  async function explainStall() {
+    const d = await api.diagnose();
+    if (!d.webrtc) return 'This browser has no WebRTC support, so peer-to-peer play is impossible here.';
+    if (d.error) return `WebRTC refused to start (${d.error}). A privacy extension or a VPN is the usual cause.`;
+    if (d.host === 0) {
+      return 'The browser produced no network candidates at all — WebRTC is being blocked. ' +
+             'Turn off the built-in VPN or proxy (Opera and Brave both ship one), disable privacy ' +
+             'extensions for this page, then reload.';
+    }
+    if (d.srflx === 0) {
+      return 'The browser can only see the local network: STUN is unreachable, usually a VPN or a ' +
+             'strict firewall. Players on the same wifi may still connect; others will not.';
+    }
+    return 'The network looks fine here, so the room is probably no longer open — ' +
+           'ask the host to check their tab is still on the game, then try the link again.';
   }
 
   function friendly(err) {
@@ -3826,6 +3948,17 @@ const Net = (() => {
     if (err.type === 'browser-incompatible') return 'This browser does not support peer-to-peer play.';
     return err.message || 'Connection failed.';
   }
+
+  api.retry = function () {
+    const code = api.code;
+    const name = localStorage.getItem('mogul.name') || 'Player';
+    try { if (peer) peer.destroy(); } catch (e) {}
+    peer = null; hostConn = null;
+    api.mode = null; net = null; LOCAL_ALL = true;
+    return join(code, name);
+  };
+
+  api.peerCount = () => conns.filter(c => c.open).length;
 
   api.send = (action) => { if (hostConn && hostConn.open) hostConn.send({ t: 'action', action }); };
   api.broadcast = broadcast;

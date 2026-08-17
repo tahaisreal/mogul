@@ -35,6 +35,27 @@ bouton pour recopier le lien — pratique pour un retardataire.
 
 Testé de 2 à 8 joueurs. Le maximum se règle dans les réglages avant de lancer.
 
+### Si un pote reste bloqué sur "Connecting…"
+
+Après 14 secondes, le jeu arrête d'attendre et explique ce qui cloche. Il y a
+aussi un bouton **Run a connection test** qui répond en clair :
+
+- `WebRTC no` → le navigateur ne sait pas faire de pair-à-pair
+- `local candidates 0` → **quelque chose bloque WebRTC**. C'est presque
+  toujours le VPN intégré du navigateur (Opera, Brave) ou une extension de
+  confidentialité. Coupe-le pour cette page et recharge.
+- `public 0` mais `local` > 0 → les serveurs STUN sont injoignables (VPN ou
+  pare-feu strict). Vos potes sur le même wifi passeront, les autres non.
+- tout à zéro sauf WebRTC → la room n'est plus ouverte, l'hôte a fermé l'onglet
+
+Le compteur **"N guests connected"** côté hôte permet de distinguer un pote qui
+n'a jamais atteint la room d'un pote bloqué plus loin.
+
+Si deux personnes n'arrivent jamais à se connecter alors que le test est bon
+des deux côtés, c'est un NAT symétrique : il faut un serveur TURN. L'endroit
+où mettre ses identifiants est marqué en commentaire dans le fichier, cherche
+`turn:YOUR_HOST`.
+
 ### Deux choses à savoir
 
 - **Garde ton onglet ouvert.** C'est ton navigateur qui fait tourner la partie
