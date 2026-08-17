@@ -1,0 +1,16 @@
+{
+  "name": "mogul-relay",
+  "version": "1.0.0",
+  "description": "Message relay for MOGUL — forwards room traffic for players whose network blocks WebRTC.",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

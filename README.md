@@ -8,9 +8,9 @@ Jeu de plateau web en 3D. Un seul fichier : `index.html`.
 
 ```bash
 mkdir mogul && cd mogul
-# copie index.html ici
+# copie index.html ici (et relay/ si tu veux le garder sous la main)
 git init
-git add index.html
+git add .
 git commit -m "MOGUL"
 git branch -M main
 git remote add origin https://github.com/TON_PSEUDO/mogul.git
@@ -23,6 +23,9 @@ Une minute après, c'est en ligne sur `https://TON_PSEUDO.github.io/mogul/`.
 
 Mise à jour plus tard : `git add index.html && git commit -m "maj" && git push`.
 
+GitHub Pages ne sert que `index.html` ; le dossier `relay/` peut rester dans le
+même dépôt sans rien casser, Pages l'ignore.
+
 ## 2. Lancer une partie
 
 1. Tu ouvres `https://TON_PSEUDO.github.io/mogul/`
@@ -34,6 +37,21 @@ Le code de la room reste affiché en haut à gauche pendant la partie, avec un
 bouton pour recopier le lien — pratique pour un retardataire.
 
 Testé de 2 à 8 joueurs. Le maximum se règle dans les réglages avant de lancer.
+
+### Si le pair-à-pair ne passe pas
+
+Certains réseaux et navigateurs bloquent WebRTC purement et simplement — le
+VPN intégré d'Opera et de Brave laisse notamment un réglage actif même une
+fois éteint. Dans ce cas aucun réglage du jeu ne peut aider : il faut passer
+par un relais.
+
+Le dossier `relay/` contient un petit serveur à déployer gratuitement en cinq
+minutes (voir `relay/DEPLOY.md`). Une fois son adresse collée dans
+**⚙ Use a relay server**, le lien d'invitation l'embarque : tes potes n'ont
+rien à configurer.
+
+Côté Opera précisément : **Réglages → Confidentialité → WebRTC**, remets la
+gestion des IP sur la valeur par défaut, puis recharge.
 
 ### Si un pote reste bloqué sur "Connecting…"
 
@@ -93,6 +111,12 @@ orange de pays ne se confonde jamais avec un rouge de joueur.
 
 Une propriété hypothéquée devient grise, se hachure, et affiche MORTGAGED sur
 sa barre de propriétaire.
+
+## Les apparences
+
+Cinq formes de pion : la boule classique, un citron, une fraise, une flamme et
+un tourbillon. Chacune existe en vraie géométrie 3D sur le plateau et en icône
+assortie dans le lobby. Couleur et forme se choisissent séparément.
 
 ## Le son
 

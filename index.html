@@ -650,6 +650,25 @@ input[type=text]:focus,input[type=number]:focus{border-color:var(--accent);outli
 }
 @keyframes spin{to{transform:rotate(360deg)}}
 .neterr+.btn{margin-top:10px}
+
+.relaybox{margin-top:10px}
+.relaybody{margin-top:8px;padding:10px;border-radius:11px;background:var(--panel-2)}
+.relaybody .pmeta{line-height:1.45;margin-bottom:8px}
+.netbox .btn.wide{margin-top:8px}
+
+/* ---------------- player shapes ---------------- */
+.shapes{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.shapebtn{
+  width:46px;height:46px;border-radius:13px;background:var(--panel-2);padding:5px;
+  transition:transform .14s var(--ease), background .18s var(--ease);
+}
+.shapebtn:hover{transform:translateY(-3px);background:var(--panel-3)}
+.shapebtn.sel{background:var(--panel-3);box-shadow:0 0 0 2.5px var(--accent-2)}
+.shapebtn svg{width:100%;height:100%;display:block}
+.sw svg,.pav svg{width:100%;height:100%;display:block}
+.sw{background:transparent !important;padding:3px}
+.pav{background:transparent !important}
+.pav svg{filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))}
 </style>
 </head>
 <body>
@@ -800,6 +819,29 @@ const PLAYER_COLORS = [
   '#a1745a', '#7a3f63', '#f472b6', '#8b5cf6',
 ];
 
+/* Player pieces. Each one is built as real geometry on the board and drawn
+   as a matching flat icon in the lobby, so the two always agree. */
+const SHAPES = ['blob', 'lemon', 'berry', 'flame', 'swirl'];
+
+const SHAPE_ICONS = {
+  blob: (c) => `<svg viewBox="0 0 32 32"><circle cx="16" cy="17" r="13" fill="${c}"/>
+    <ellipse cx="16" cy="9" rx="11" ry="7" fill="rgba(255,255,255,.22)"/></svg>`,
+  lemon: (c) => `<svg viewBox="0 0 32 32"><ellipse cx="16" cy="16" rx="10" ry="13" fill="${c}"/>
+    <path d="M16 1c1.6 1.4 2 3 1.6 4.4-1 .5-2.2.5-3.2 0C14 4 14.4 2.4 16 1Z" fill="#4f9b3a"/>
+    <ellipse cx="12" cy="10" rx="4" ry="6" fill="rgba(255,255,255,.28)"/></svg>`,
+  berry: (c) => `<svg viewBox="0 0 32 32"><path d="M16 30c-6-3-9-8-9-13 0-4 4-6 9-6s9 2 9 6c0 5-3 10-9 13Z" fill="${c}"/>
+    <path d="M9 8c2-1 4-1 7-1s5 0 7 1c-1 2-4 3-7 3S10 10 9 8Z" fill="#4f9b3a"/>
+    <g fill="rgba(255,255,255,.55)"><circle cx="12" cy="17" r="1"/><circle cx="17" cy="15" r="1"/>
+    <circle cx="20" cy="19" r="1"/><circle cx="14" cy="22" r="1"/></g></svg>`,
+  flame: (c) => `<svg viewBox="0 0 32 32"><path d="M16 2c5 5 10 10 10 16a10 10 0 0 1-20 0C6 12 11 7 16 2Z" fill="${c}"/>
+    <path d="M16 13c2.6 2.6 5 5 5 8a5 5 0 0 1-10 0c0-3 2.4-5.4 5-8Z" fill="rgba(255,235,150,.75)"/></svg>`,
+  swirl: (c) => `<svg viewBox="0 0 32 32"><ellipse cx="16" cy="25" rx="12" ry="6" fill="${c}"/>
+    <ellipse cx="16" cy="17" rx="9" ry="5" fill="${c}"/>
+    <ellipse cx="16" cy="10" rx="6" ry="4" fill="${c}"/>
+    <ellipse cx="16" cy="5" rx="3" ry="2.4" fill="${c}"/>
+    <ellipse cx="12" cy="15" rx="3" ry="2" fill="rgba(255,255,255,.2)"/></svg>`,
+};
+
 const DEFAULT_SETTINGS = {
   maxPlayers: 4,
   privateRoom: false,
@@ -878,10 +920,10 @@ const Engine = (() => {
     return a;
   }
 
-  function addPlayer(s, { id, name, color, isBot }) {
+  function addPlayer(s, { id, name, color, shape, isBot }) {
     if (s.players.length >= s.settings.maxPlayers) return false;
     s.players.push({
-      id: id || rid(8), name, color, isBot: !!isBot,
+      id: id || rid(8), name, color, shape: shape || 'blob', isBot: !!isBot,
       cash: s.settings.startingCash,
       pos: 0, inPrison: false, prisonTurns: 0, jailCards: 0,
       bankrupt: false, ready: false, host: s.players.length === 0,
@@ -1529,6 +1571,7 @@ const Engine = (() => {
         if (s.phase !== 'lobby') break;
         if (a.name) me.name = String(a.name).slice(0, 14);
         if (a.color && !s.players.some(p => p.id !== playerId && p.color === a.color)) me.color = a.color;
+        if (a.shape && SHAPES.includes(a.shape)) me.shape = a.shape;
         break;
       }
 
@@ -2235,35 +2278,105 @@ const Board3D = (() => {
 
   /* ---------------- pieces ---------------- */
 
-  /* Deliberately squat: a tall pawn seen at 49 degrees paints itself over the
-     tile behind it, which is where the property name lives. */
-  function pawnMesh(T, color) {
-    const g = new T.Group();
-    const mat = new T.MeshStandardMaterial({ color, roughness: .34, metalness: .04 });
+  /* Pieces are deliberately squat: a tall pawn seen from 49 degrees paints
+     itself over the tile behind it, which is where the property name lives.
+     Each silhouette is real geometry so it reads from any distance.        */
 
-    const base = new T.Mesh(new T.CylinderGeometry(0.36, 0.40, 0.16, 24), mat);
-    base.position.y = 0.08;
-    base.castShadow = true;
-    g.add(base);
-
-    const dome = new T.Mesh(new T.SphereGeometry(0.36, 26, 18), mat);
-    dome.scale.set(1, 0.78, 1);
-    dome.position.y = 0.20;
-    dome.castShadow = true;
-    g.add(dome);
-
+  function eyes(T, g, y, z, r) {
     const white = new T.MeshStandardMaterial({ color: '#ffffff', roughness: .28 });
     const black = new T.MeshStandardMaterial({ color: '#15151d', roughness: .28 });
     [-0.13, 0.13].forEach(dx => {
-      const e = new T.Mesh(new T.SphereGeometry(0.115, 14, 12), white);
-      e.position.set(dx, 0.40, 0.20);
+      const e = new T.Mesh(new T.SphereGeometry(r, 14, 12), white);
+      e.position.set(dx, y, z);
       g.add(e);
-      const p = new T.Mesh(new T.SphereGeometry(0.052, 10, 8), black);
-      p.position.set(dx, 0.40, 0.29);
+      const p = new T.Mesh(new T.SphereGeometry(r * 0.45, 10, 8), black);
+      p.position.set(dx, y, z + r * 0.72);
       g.add(p);
     });
-    g.userData.body = dome;
-    g.userData.baseY = 0.20;
+  }
+
+  /* half-profile revolved around Y, used for the pointier silhouettes */
+  function lathe(T, pts, mat, segments) {
+    const v = pts.map(([x, y]) => new T.Vector2(x, y));
+    const m = new T.Mesh(new T.LatheGeometry(v, segments || 24), mat);
+    m.castShadow = true;
+    return m;
+  }
+
+  function pawnMesh(T, color, shape) {
+    const g = new T.Group();
+    const mat = new T.MeshStandardMaterial({ color, roughness: .34, metalness: .04 });
+    const leaf = new T.MeshStandardMaterial({ color: '#4f9b3a', roughness: .5 });
+    let eyeY = 0.40, eyeZ = 0.20, eyeR = 0.115, bodyRef = null;
+
+    if (shape === 'lemon') {
+      const body = lathe(T, [[0, 0], [0.20, 0.03], [0.33, 0.16], [0.36, 0.32],
+        [0.30, 0.48], [0.16, 0.58], [0, 0.62]], mat, 26);
+      g.add(body);
+      const tip = new T.Mesh(new T.ConeGeometry(0.07, 0.10, 10), leaf);
+      tip.position.y = 0.66;
+      g.add(tip);
+      bodyRef = body; eyeY = 0.36; eyeZ = 0.27; eyeR = 0.10;
+
+    } else if (shape === 'berry') {
+      const body = lathe(T, [[0, 0], [0.13, 0.02], [0.28, 0.14], [0.36, 0.32],
+        [0.32, 0.46], [0.18, 0.53], [0, 0.55]], mat, 26);
+      g.add(body);
+      const cap = new T.Mesh(new T.ConeGeometry(0.30, 0.12, 12), leaf);
+      cap.position.y = 0.58;
+      cap.rotation.y = Math.PI / 12;
+      g.add(cap);
+      bodyRef = body; eyeY = 0.32; eyeZ = 0.27; eyeR = 0.10;
+
+    } else if (shape === 'flame') {
+      const body = lathe(T, [[0, 0], [0.22, 0.05], [0.34, 0.20], [0.32, 0.40],
+        [0.20, 0.58], [0.08, 0.70], [0, 0.76]], mat, 26);
+      g.add(body);
+      const inner = new T.Mesh(new T.SphereGeometry(0.16, 16, 12),
+        new T.MeshStandardMaterial({ color: '#ffe08a', roughness: .3, emissive: '#7a4a00', emissiveIntensity: .35 }));
+      inner.scale.set(1, 1.5, 1);
+      inner.position.y = 0.22;
+      g.add(inner);
+      bodyRef = body; eyeY = 0.34; eyeZ = 0.25; eyeR = 0.095;
+
+    } else if (shape === 'swirl') {
+      const tiers = [[0.38, 0.09, 0.09], [0.29, 0.21, 0.075], [0.20, 0.32, 0.06]];
+      tiers.forEach(([r, y, h]) => {
+        const m = new T.Mesh(new T.SphereGeometry(r, 20, 14), mat);
+        m.scale.set(1, 0.62, 1);
+        m.position.y = y;
+        m.castShadow = true;
+        g.add(m);
+        bodyRef = bodyRef || m;
+      });
+      const tip = new T.Mesh(new T.ConeGeometry(0.10, 0.14, 12), mat);
+      tip.position.y = 0.44;
+      g.add(tip);
+      eyeY = 0.24; eyeZ = 0.26; eyeR = 0.10;
+
+    } else {
+      const base = new T.Mesh(new T.CylinderGeometry(0.36, 0.40, 0.16, 24), mat);
+      base.position.y = 0.08;
+      base.castShadow = true;
+      g.add(base);
+      const dome = new T.Mesh(new T.SphereGeometry(0.36, 26, 18), mat);
+      dome.scale.set(1, 0.78, 1);
+      dome.position.y = 0.20;
+      dome.castShadow = true;
+      g.add(dome);
+      bodyRef = dome;
+    }
+
+    eyes(T, g, eyeY, eyeZ, eyeR);
+
+    // Sit every silhouette exactly on the surface: the shapes have different
+    // profiles, so measure rather than hand-tune each one.
+    const box = new T.Box3().setFromObject(g);
+    if (box.min.y < 0) g.children.forEach(c => { c.position.y -= box.min.y; });
+
+    g.userData.body = bodyRef;
+    g.userData.baseY = bodyRef ? bodyRef.position.y : 0.2;
+    g.userData.shape = shape || 'blob';
     return g;
   }
 
@@ -2273,8 +2386,13 @@ const Board3D = (() => {
     S.players.forEach(p => {
       if (p.bankrupt) return;
       alive[p.id] = true;
+      const want = p.shape || 'blob';
+      if (pawns[p.id] && pawns[p.id].userData.shape !== want) {
+        scene.remove(pawns[p.id]);
+        delete pawns[p.id];
+      }
       if (!pawns[p.id]) {
-        pawns[p.id] = pawnMesh(THREE, p.color);
+        pawns[p.id] = pawnMesh(THREE, p.color, want);
         scene.add(pawns[p.id]);
         pawns[p.id].userData.tile = p.pos;
       }
@@ -2501,6 +2619,7 @@ const Board3D = (() => {
   // exposed for headless verification of the scene graph
   api._build = buildScene;
   api._pawn = pawnMesh;
+  api._shapes = () => SHAPES;
   api._paint = drawTexture;
   api._sync = () => { syncPawns(); syncBuildings(); };
   api._pawns = () => pawns;
@@ -2518,7 +2637,7 @@ const Board3D = (() => {
       renderer = new T.WebGLRenderer({ antialias: true, alpha: false });
       renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
       renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = T.PCFSoftShadowMap;
+      renderer.shadowMap.type = T.PCFShadowMap;   // three 0.185 deprecated the soft variant and silently uses this one
       renderer.toneMapping = T.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.18;
       host.appendChild(renderer.domElement);
@@ -2713,6 +2832,11 @@ function renderHUD() {
   renderPrompt(prompt);
 }
 
+function avatarNode(p) {
+  const a = el('div', 'pav', SHAPE_ICONS[p.shape || 'blob'](p.color));
+  return a;
+}
+
 function renderPlayerPanel(slot) {
   // hosts keep the invite handy: latecomers and reconnects both need it
   if (net && net.mode === 'host') {
@@ -2741,9 +2865,7 @@ function renderPlayerPanel(slot) {
     const p = Engine.P(S, id);
     const cur = Engine.current(S);
     const row = el('div', 'prow' + (cur && cur.id === id ? ' active' : '') + (p.bankrupt ? ' dead' : ''));
-    const av = el('div', 'pav', '<div class="eye"></div><div class="eye"></div>');
-    av.style.background = p.color;
-    row.appendChild(av);
+    row.appendChild(avatarNode(p));
     row.appendChild(el('div', 'pname',
       `${esc(p.name)}${p.id === MY_ID ? ' <span class="pmeta">you</span>' : ''}${p.inPrison ? ' ⛓' : ''}${p.jailCards ? ' 🎟'.repeat(p.jailCards) : ''}`));
     row.appendChild(el('div', 'pcash', `$${p.cash}`));
@@ -3295,11 +3417,7 @@ function openTrade(preselect) {
     back.onclick = pickStep;
     body.appendChild(back);
 
-    const avatar = (p) => {
-      const a = el('div', 'pav', '<div class="eye"></div><div class="eye"></div>');
-      a.style.background = p.color;
-      return a;
-    };
+    const avatar = avatarNode;
 
     const cols = el('div', 'tradecols');
     const mk = (p, cls, verb) => {
@@ -3470,6 +3588,7 @@ function renderLobby() {
       localStorage.setItem('mogul.name', nm);
       Net.join(urlCode, nm);
     };
+    j.appendChild(relayField());
     jn.onkeydown = (e) => { if (e.key === 'Enter') go.click(); };
     j.append(jn, go);
     if (Net.status === 'error') j.appendChild(el('div', 'neterr', esc(Net.error)));
@@ -3495,9 +3614,10 @@ function renderLobby() {
   const sws = el('div', 'swatches');
   PLAYER_COLORS.forEach(c => {
     const taken = takenColors.includes(c) && (!me || me.color !== c);
+    const shape = me ? (me.shape || 'blob') : 'blob';
     const b = el('button', 'sw' + (me && me.color === c ? ' sel' : '') + (taken ? ' taken' : ''),
-      '<div class="eye"></div><div class="eye"></div>');
-    b.style.background = c; b.style.color = c;
+      SHAPE_ICONS[shape](c));
+    b.style.color = c;
     b.onclick = () => {
       if (!me) return;
       if (net && net.mode === 'guest') { net.send({ type: 'rename', color: c }); return; }
@@ -3507,6 +3627,24 @@ function renderLobby() {
     sws.appendChild(b);
   });
   main.appendChild(sws);
+
+  main.appendChild(el('div', 'pmeta', 'Pick a shape'));
+  const shapes = el('div', 'shapes');
+  SHAPES.forEach(sh => {
+    const cur = me ? (me.shape || 'blob') : 'blob';
+    const b = el('button', 'shapebtn' + (cur === sh ? ' sel' : ''),
+      SHAPE_ICONS[sh](me ? me.color : PLAYER_COLORS[3]));
+    b.title = sh;
+    b.onclick = () => {
+      if (!me) return;
+      if (net && net.mode === 'guest') { net.send({ type: 'rename', shape: sh }); return; }
+      me.shape = sh;
+      renderLobby();
+      if (net && net.mode === 'host') net.broadcast();
+    };
+    shapes.appendChild(b);
+  });
+  main.appendChild(shapes);
 
   const nameBox = el('div'); nameBox.style.width = '260px';
   const inp = el('input'); inp.type = 'text'; inp.maxLength = 14;
@@ -3567,34 +3705,47 @@ function renderLobby() {
 
 function connectionPanel() {
   const box = el('div', 'card netbox');
+
   if (!net) {
-    box.appendChild(el('div', 'pmeta', 'Everyone on one screen, or one link each.'));
+    const relay = Net.relayURL();
+    box.appendChild(el('div', 'pmeta',
+      relay ? 'A relay server is configured — rooms will use it.'
+            : 'Peer-to-peer by default. Add a relay below if your network blocks WebRTC.'));
+
     const b = el('button', 'btn primary wide', '🌐 Create an online room');
     b.style.marginTop = '8px';
     b.onclick = () => { b.disabled = true; b.textContent = 'Opening…'; Net.host(); };
     box.appendChild(b);
-    if (Net.status === 'error') box.appendChild(el('div', 'neterr', esc(Net.error)));
+
+    if (Net.status === 'error') {
+      box.appendChild(el('div', 'neterr', esc(Net.error)));
+      const again = el('button', 'btn wide', '↻ Try again');
+      again.onclick = () => Net.retry();
+      box.appendChild(again);
+    }
+    box.appendChild(relayField());
     return box;
   }
+
   if (net.mode === 'host') {
-    box.appendChild(el('h3', '', `Room ${esc(net.code)}`));
+    box.appendChild(el('h3', '', `Room ${esc(net.code)} · ${net.transport === 'relay' ? 'relay' : 'peer-to-peer'}`));
     const link = Net.inviteLink();
     const row = el('div', 'linkrow');
     const inp = el('input'); inp.type = 'text'; inp.readOnly = true; inp.value = link;
     inp.onclick = () => inp.select();
     const copy = el('button', 'btn primary', 'Copy');
     copy.onclick = async () => {
-      try { await navigator.clipboard.writeText(link); } catch { inp.select(); document.execCommand('copy'); }
+      try { await navigator.clipboard.writeText(link); } catch { inp.select(); }
       copy.textContent = 'Copied ✓';
       setTimeout(() => copy.textContent = 'Copy', 1600);
     };
     row.append(inp, copy);
     const peers = Net.peerCount ? Net.peerCount() : 0;
     box.append(row, el('div', 'pmeta',
-      `Send this to your friends. Keep this tab open — it runs the game.<br>
-       <b>${peers}</b> guest${peers === 1 ? '' : 's'} connected.`));
+      `Send this to your friends. Keep this tab open — it runs the game.<br><b>${peers}</b> guest${peers === 1 ? '' : 's'} connected.`));
     return box;
   }
+
   box.appendChild(el('h3', '', `Room ${esc(net.code)}`));
   if (Net.status === 'open') {
     box.appendChild(el('div', 'pmeta', 'Connected. Waiting for the host to start.'));
@@ -3606,19 +3757,54 @@ function connectionPanel() {
     again.style.marginTop = '10px';
     again.onclick = () => Net.retry();
     box.appendChild(again);
-    const diag = el('button', 'linkbtn', 'Run a connection test');
-    diag.onclick = async () => {
-      diag.textContent = 'Testing…';
-      const d = await Net.diagnose();
-      diag.textContent = `WebRTC ${d.webrtc ? 'yes' : 'no'} · local candidates ${d.host} · public ${d.srflx}${d.error ? ' · ' + d.error : ''}`;
-    };
-    box.appendChild(diag);
+    if (Net.relayURL() && net.transport !== 'relay') {
+      const viaRelay = el('button', 'btn wide', '🛟 Use the relay instead');
+      viaRelay.onclick = () => Net.retry('relay');
+      box.appendChild(viaRelay);
+    }
+    box.appendChild(diagButton());
+    box.appendChild(relayField());
     return box;
   }
-  const wait = el('div', 'pmeta connecting',
-    Net.status === 'stalled' ? 'Still trying to reach the host…' : 'Connecting…');
-  box.appendChild(wait);
+  box.appendChild(el('div', 'pmeta connecting',
+    Net.status === 'signalling' ? 'Finding the room…' : 'Connecting…'));
   return box;
+}
+
+function diagButton() {
+  const diag = el('button', 'linkbtn', 'Run a connection test');
+  diag.onclick = async () => {
+    diag.textContent = 'Testing…';
+    const d = await Net.diagnose();
+    diag.textContent = `WebRTC ${d.webrtc ? 'yes' : 'no'} · local ${d.host} · public ${d.srflx}${d.error ? ' · ' + d.error : ''}`;
+  };
+  return diag;
+}
+
+/* A relay address makes the game work on networks that kill WebRTC. */
+function relayField() {
+  const wrap = el('div', 'relaybox');
+  const toggle = el('button', 'linkbtn', Net.relayURL() ? '⚙ Relay server (set)' : '⚙ Use a relay server');
+  const body = el('div', 'relaybody');
+  body.style.display = 'none';
+  toggle.onclick = () => { body.style.display = body.style.display === 'none' ? 'block' : 'none'; };
+
+  const inp = el('input');
+  inp.type = 'text';
+  inp.placeholder = 'wss://your-relay.onrender.com';
+  inp.value = Net.relayURL();
+  const save = el('button', 'btn wide', 'Save relay');
+  save.style.marginTop = '8px';
+  save.onclick = () => {
+    Net.setRelayURL(inp.value);
+    toast(inp.value ? 'Relay saved' : 'Relay cleared');
+    renderLobby();
+  };
+  body.append(
+    el('div', 'pmeta', 'Paste the address of a relay server. It forwards messages only — the game still runs in the host browser.'),
+    inp, save);
+  wrap.append(toggle, body);
+  return wrap;
 }
 
 function settingsColumn(readOnly) {
@@ -3698,26 +3884,26 @@ function boot() {
 }
 </script>
 <script>/* ============================================================
-   MOGUL — online play over WebRTC (PeerJS)
+   MOGUL — online play
 
-   GitHub Pages only serves static files, so there is no server to run
-   the rules. Instead the host's browser is authoritative: guests send
-   actions, the host applies them with the same engine and broadcasts
-   the resulting state. One link is all anyone needs.
+   Two transports, one game logic. The host's browser is always the
+   referee: guests send actions, the host applies them with the same
+   engine and broadcasts the result.
 
-   Host   ->  index.html          (clicks "Create online room")
-   Guests ->  index.html#ABCDE    (auto-joins)
+     p2p    WebRTC via PeerJS. No server, but it dies wherever WebRTC
+            is blocked — VPNs, proxies and some corporate networks.
+     relay  A tiny WebSocket server that just forwards messages. Works
+            anywhere a website works, at the cost of hosting it.
+
+   The relay is a message bus, not a referee: it never sees the rules.
    ============================================================ */
 
 const Net = (() => {
   const PREFIX = 'mogul-v1-';
   const CDN = 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
-  const JOIN_TIMEOUT = 14000;   // ms before we stop waiting and explain why
+  const BROKER_TIMEOUT = 9000;    // waiting for the matchmaking service
+  const CHANNEL_TIMEOUT = 14000;  // waiting for the actual connection
 
-  /* Several STUN servers rather than one: if a network blocks a host, the
-     others still let the browser discover its public address. A TURN server
-     would also relay traffic through symmetric NATs, but there is no free one
-     worth depending on — add credentials here if a pair ever cannot connect. */
   const ICE = [
     { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
     { urls: ['stun:stun2.l.google.com:19302', 'stun:stun3.l.google.com:19302'] },
@@ -3725,17 +3911,113 @@ const Net = (() => {
   ];
   const PEER_OPTS = { debug: 0, config: { iceServers: ICE } };
 
-  let peer = null;
-  let conns = [];        // host: one per guest
-  let hostConn = null;   // guest: the single link to the host
-  const seatByConn = new Map();
-
   const api = {
-    mode: null,          // 'host' | 'guest'
+    mode: null,        // 'host' | 'guest'
+    transport: null,   // 'p2p' | 'relay'
     code: null,
-    status: 'idle',      // idle | loading | connecting | open | error
+    status: 'idle',    // idle | signalling | connecting | open | error
     error: '',
   };
+
+  /* ---------- session state, shared by both transports ---------- */
+
+  let send = null;          // (peerId|null, data) -> void
+  let closeAll = () => {};
+  const peers = new Set();  // host: connected guests
+  const seatByPeer = new Map();
+  let myName = 'Player';
+
+  function setStatus(status, error) {
+    api.status = status;
+    api.error = error || '';
+    if (typeof S !== 'undefined' && S && S.phase === 'lobby') renderLobby();
+  }
+
+  function relayURL() {
+    const q = new URLSearchParams(location.search).get('relay');
+    return q || localStorage.getItem('mogul.relay') || '';
+  }
+  api.relayURL = relayURL;
+  api.setRelayURL = (u) => {
+    if (u) localStorage.setItem('mogul.relay', u.trim());
+    else localStorage.removeItem('mogul.relay');
+  };
+
+  /* ---------- host side: identical whatever the wire ---------- */
+
+  function onGuestMessage(peerId, msg) {
+    if (msg.t === 'hello') {
+      const name = String(msg.name || 'Player').slice(0, 14);
+      const existing = S.players.find(p => p.name === name);
+
+      if (S.phase !== 'lobby') {
+        if (!existing) return send(peerId, { t: 'refused', reason: 'The game already started.' });
+        seatByPeer.set(peerId, existing.id);
+        send(peerId, { t: 'you', id: existing.id });
+        return broadcast();
+      }
+      if (existing) return send(peerId, { t: 'refused', reason: 'That name is already taken in this room.' });
+
+      const taken = S.players.map(p => p.color);
+      const color = PLAYER_COLORS.find(c => !taken.includes(c));
+      if (!color || !Engine.addPlayer(S, { name, color })) {
+        return send(peerId, { t: 'refused', reason: 'The room is full.' });
+      }
+      const seat = S.players[S.players.length - 1].id;
+      seatByPeer.set(peerId, seat);
+      send(peerId, { t: 'you', id: seat });
+      renderLobby();
+      return broadcast();
+    }
+
+    if (msg.t === 'action') {
+      const seat = seatByPeer.get(peerId);
+      if (!seat) return;
+      Engine.applyAction(S, seat, msg.action);   // the host is the referee
+      if (S.phase === 'lobby') renderLobby();
+      else { const l = document.querySelector('#lobby'); if (l) l.remove(); render(); }
+      broadcast();
+    }
+  }
+
+  function onGuestGone(peerId) {
+    peers.delete(peerId);
+    const seat = seatByPeer.get(peerId);
+    seatByPeer.delete(peerId);
+    if (!seat) return;
+    if (S.phase === 'lobby') {
+      S.players = S.players.filter(p => p.id !== seat);
+      renderLobby();
+    } else {
+      Engine.log(S, 'A player lost connection — they can rejoin with the same name');
+      render();
+    }
+    broadcast();
+  }
+
+  function broadcast() {
+    send(null, { t: 'state', state: S });
+  }
+  api.broadcast = broadcast;
+  api.peerCount = () => peers.size;
+
+  /* ---------- guest side ---------- */
+
+  function onHostMessage(msg) {
+    if (msg.t === 'you') MY_ID = msg.id;
+    if (msg.t === 'refused') setStatus('error', msg.reason);
+    if (msg.t === 'state') {
+      S = msg.state;
+      if (S.phase === 'lobby') renderLobby();
+      else { const l = document.querySelector('#lobby'); if (l) l.remove(); render(); }
+    }
+  }
+
+  api.send = (action) => send && send(null, { t: 'action', action });
+
+  /* ============================================================
+     transport: WebRTC (PeerJS)
+     ============================================================ */
 
   function loadPeerJS() {
     if (window.Peer) return Promise.resolve();
@@ -3749,146 +4031,184 @@ const Net = (() => {
   }
 
   function makeCode() {
-    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no O/0, no I/1
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     return Array.from({ length: 5 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
   }
 
-  function setStatus(status, error) {
-    api.status = status;
-    api.error = error || '';
-    if (S && S.phase === 'lobby') renderLobby();
-  }
+  async function p2pHost(code) {
+    await loadPeerJS();
+    setStatus('signalling');
+    const conns = new Map();
 
-  /* ---------------- host ---------------- */
+    const peer = new window.Peer(PREFIX + code, PEER_OPTS);
+    closeAll = () => { try { peer.destroy(); } catch (e) {} };
+    send = (to, data) => {
+      if (to) { const c = conns.get(to); if (c && c.open) c.send(data); return; }
+      conns.forEach(c => { if (c.open) c.send(data); });
+    };
 
-  async function host() {
-    try { await loadPeerJS(); } catch (e) { return setStatus('error', e.message); }
-    setStatus('loading');
-
-    const code = makeCode();
-    peer = new window.Peer(PREFIX + code, PEER_OPTS);
+    const broker = setTimeout(() => {
+      if (api.status === 'signalling') {
+        setStatus('error', 'The matchmaking service did not answer. Try again, or use a relay server.');
+      }
+    }, BROKER_TIMEOUT);
 
     peer.on('open', () => {
-      api.mode = 'host';
-      api.code = code;
-      net = api;
-      LOCAL_ALL = false;
-      history.replaceState(null, '', '#' + code);
-      setStatus('open');
+      clearTimeout(broker);
+      finishHost(code, 'p2p');
     });
-
     peer.on('error', (err) => {
-      if (err.type === 'unavailable-id') { peer.destroy(); return host(); }  // code collision, retry
+      clearTimeout(broker);
+      if (err.type === 'unavailable-id') { try { peer.destroy(); } catch (e) {} return p2pHost(makeCode()); }
       setStatus('error', friendly(err));
     });
-
     peer.on('connection', (conn) => {
-      conn.on('open', () => conns.push(conn));
-      conn.on('data', (msg) => onHostMessage(conn, msg));
-      conn.on('close', () => {
-        conns = conns.filter(c => c !== conn);
-        const seat = seatByConn.get(conn);
-        seatByConn.delete(conn);
-        if (seat && S.phase === 'lobby') {
-          S.players = S.players.filter(p => p.id !== seat);
-          renderLobby(); broadcast();
-        } else if (seat) {
-          Engine.log(S, 'A player lost connection — they can rejoin with the same name');
-          render(); broadcast();
-        }
-      });
+      const id = conn.peer;
+      conn.on('open', () => { conns.set(id, conn); peers.add(id); renderLobby(); });
+      conn.on('data', (msg) => onGuestMessage(id, msg));
+      conn.on('close', () => { conns.delete(id); onGuestGone(id); });
     });
   }
 
-  function onHostMessage(conn, msg) {
-    if (msg.t === 'hello') {
-      const name = String(msg.name || 'Player').slice(0, 14);
-      const existing = S.players.find(p => p.name === name);
-      if (S.phase !== 'lobby') {
-        // rejoining an in-progress game: match the seat by name
-        if (!existing) return conn.send({ t: 'refused', reason: 'The game already started.' });
-        seatByConn.set(conn, existing.id);
-        conn.send({ t: 'you', id: existing.id });
-        return broadcast();
+  async function p2pJoin(code, name) {
+    await loadPeerJS();
+    setStatus('signalling');
+    const peer = new window.Peer(PEER_OPTS);
+    let hostConn = null, settled = false;
+    closeAll = () => { try { peer.destroy(); } catch (e) {} };
+
+    const broker = setTimeout(() => {
+      if (!settled && api.status === 'signalling') {
+        setStatus('error', 'The matchmaking service did not answer. Try again, or ask the host for a relay link.');
       }
-      if (existing) return conn.send({ t: 'refused', reason: 'That name is already taken in this room.' });
-      const taken = S.players.map(p => p.color);
-      const color = PLAYER_COLORS.find(c => !taken.includes(c));
-      if (!color || !Engine.addPlayer(S, { name, color })) {
-        return conn.send({ t: 'refused', reason: 'The room is full.' });
-      }
-      const seat = S.players[S.players.length - 1].id;
-      seatByConn.set(conn, seat);
-      conn.send({ t: 'you', id: seat });
-      renderLobby();
-      return broadcast();
-    }
+    }, BROKER_TIMEOUT);
 
-    if (msg.t === 'action') {
-      const seat = seatByConn.get(conn);
-      if (!seat) return;
-      Engine.applyAction(S, seat, msg.action);   // the host is the referee
-      if (S.phase === 'lobby') renderLobby();
-      else { const l = document.querySelector('#lobby'); if (l) l.remove(); render(); }
-      broadcast();
-    }
-  }
-
-  function broadcast() {
-    const payload = { t: 'state', state: S };
-    conns.forEach(c => { if (c.open) c.send(payload); });
-  }
-
-  /* ---------------- guest ---------------- */
-
-  async function join(code, name) {
-    try { await loadPeerJS(); } catch (e) { return setStatus('error', e.message); }
-    api.mode = 'guest';
-    api.code = code;
-    net = api;
-    LOCAL_ALL = false;
-    setStatus('connecting');
-
-    peer = new window.Peer(PEER_OPTS);
-    peer.on('error', (err) => setStatus('error', friendly(err)));
-
-    let settled = false;
-    const stallTimer = setTimeout(async () => {
+    const stall = setTimeout(async () => {
       if (settled) return;
-      setStatus('stalled', 'Still trying to reach the host…');
       setStatus('error', await explainStall());
-    }, JOIN_TIMEOUT);
+    }, CHANNEL_TIMEOUT);
+
+    peer.on('error', (err) => { clearTimeout(broker); setStatus('error', friendly(err)); });
 
     peer.on('open', () => {
+      clearTimeout(broker);
+      setStatus('connecting');
       hostConn = peer.connect(PREFIX + code, { reliable: true });
+      send = (_to, data) => { if (hostConn && hostConn.open) hostConn.send(data); };
       hostConn.on('open', () => {
-        settled = true;
-        clearTimeout(stallTimer);
-        setStatus('open');
-        hostConn.send({ t: 'hello', name });
+        settled = true; clearTimeout(stall);
+        finishGuest(code, 'p2p');
+        send(null, { t: 'hello', name });
       });
-      hostConn.on('data', (msg) => {
-        if (msg.t === 'you') MY_ID = msg.id;
-        if (msg.t === 'refused') setStatus('error', msg.reason);
-        if (msg.t === 'state') {
-          S = msg.state;
-          if (S.phase === 'lobby') renderLobby();
-          else { const l = document.querySelector('#lobby'); if (l) l.remove(); render(); }
-        }
-      });
-      hostConn.on('close', () => {
-        clearTimeout(stallTimer);
-        setStatus('error', 'The connection to the host dropped.');
-      });
-      hostConn.on('error', () => {
-        clearTimeout(stallTimer);
-        setStatus('error', 'The link to the host failed.');
-      });
+      hostConn.on('data', onHostMessage);
+      hostConn.on('close', () => { clearTimeout(stall); setStatus('error', 'The connection to the host dropped.'); });
+      hostConn.on('error', () => { clearTimeout(stall); setStatus('error', 'The link to the host failed.'); });
     });
   }
 
-  /* Gathers ICE candidates on their own to tell a blocked browser apart from
-     a merely unlucky network. Runs only when a connection has already failed. */
+  /* ============================================================
+     transport: WebSocket relay
+     ============================================================ */
+
+  function relayConnect(url, code, role, name) {
+    return new Promise((resolve, reject) => {
+      let ws;
+      try { ws = new WebSocket(url); } catch (e) { return reject(new Error('That relay address is not valid.')); }
+      const timer = setTimeout(() => { try { ws.close(); } catch (e) {} reject(new Error('The relay server did not answer.')); }, CHANNEL_TIMEOUT);
+
+      ws.onopen = () => ws.send(JSON.stringify({ t: 'join', room: code, role }));
+      ws.onerror = () => { clearTimeout(timer); reject(new Error('Could not reach the relay server.')); };
+      ws.onclose = () => { if (api.status === 'open') setStatus('error', 'The relay connection dropped.'); };
+
+      ws.onmessage = (ev) => {
+        let msg; try { msg = JSON.parse(ev.data); } catch (e) { return; }
+
+        if (msg.t === 'welcome') {
+          clearTimeout(timer);
+          closeAll = () => { try { ws.close(); } catch (e) {} };
+          if (role === 'host') {
+            send = (to, data) => ws.send(JSON.stringify({ t: to ? 'to' : 'all', id: to, data }));
+            resolve();
+          } else {
+            if (!msg.host) { try { ws.close(); } catch (e) {} return reject(new Error('No room with that code on this relay.')); }
+            send = (_to, data) => ws.send(JSON.stringify({ t: 'to', id: msg.host, data }));
+            resolve();
+            send(null, { t: 'hello', name });
+          }
+          return;
+        }
+        if (msg.t === 'peer' && role === 'host') { peers.add(msg.id); renderLobby(); return; }
+        if (msg.t === 'gone') { if (role === 'host') onGuestGone(msg.id); else setStatus('error', 'The host left the room.'); return; }
+        if (msg.t === 'from') {
+          if (role === 'host') onGuestMessage(msg.id, msg.data);
+          else onHostMessage(msg.data);
+        }
+      };
+    });
+  }
+
+  /* ---------- entry points ---------- */
+
+  function finishHost(code, transport) {
+    api.mode = 'host'; api.transport = transport; api.code = code;
+    net = api; LOCAL_ALL = false;
+    const q = transport === 'relay' ? '?relay=' + encodeURIComponent(relayURL()) : '';
+    history.replaceState(null, '', location.pathname + q + '#' + code);
+    setStatus('open');
+  }
+
+  function finishGuest(code, transport) {
+    api.mode = 'guest'; api.transport = transport; api.code = code;
+    net = api; LOCAL_ALL = false;
+    setStatus('open');
+  }
+
+  api.host = async function (preferred) {
+    const code = makeCode();
+    const relay = relayURL();
+    const want = preferred || (relay ? 'relay' : 'p2p');
+    try {
+      if (want === 'relay' && relay) {
+        setStatus('connecting');
+        await relayConnect(relay, code, 'host');
+        finishHost(code, 'relay');
+      } else {
+        await p2pHost(code);
+      }
+    } catch (e) {
+      setStatus('error', e.message || String(e));
+    }
+  };
+
+  api.join = async function (code, name, preferred) {
+    myName = name;
+    const relay = relayURL();
+    const want = preferred || (relay ? 'relay' : 'p2p');
+    try {
+      if (want === 'relay' && relay) {
+        setStatus('connecting');
+        await relayConnect(relay, code, 'guest', name);
+        finishGuest(code, 'relay');
+      } else {
+        await p2pJoin(code, name);
+      }
+    } catch (e) {
+      setStatus('error', e.message || String(e));
+    }
+  };
+
+  api.retry = function (preferred) {
+    const code = api.code || (location.hash || '').replace('#', '').toUpperCase();
+    const mode = api.mode;
+    try { closeAll(); } catch (e) {}
+    peers.clear(); seatByPeer.clear();
+    send = null; api.mode = null; api.transport = null;
+    net = null; LOCAL_ALL = true;
+    return mode === 'host' ? api.host(preferred) : api.join(code, myName, preferred);
+  };
+
+  /* ---------- diagnosis ---------- */
+
   api.diagnose = function () {
     return new Promise((resolve) => {
       const out = { webrtc: false, host: 0, srflx: 0, relay: 0, error: '' };
@@ -3918,53 +4238,41 @@ const Net = (() => {
         else if (kind === 'relay') out.relay++;
       };
       setTimeout(finish, 6000);
-      pc.createOffer()
-        .then(o => pc.setLocalDescription(o))
+      pc.createOffer().then(o => pc.setLocalDescription(o))
         .catch(e => { out.error = e.message || String(e); finish(); });
     });
   };
 
-  /* Turns a stalled connection into an explanation the player can act on. */
   async function explainStall() {
     const d = await api.diagnose();
-    if (!d.webrtc) return 'This browser has no WebRTC support, so peer-to-peer play is impossible here.';
-    if (d.error) return `WebRTC refused to start (${d.error}). A privacy extension or a VPN is the usual cause.`;
+    const escape = relayURL()
+      ? ' A relay server is configured — press "Use the relay instead".'
+      : ' Ask the host for a relay link, which does not need WebRTC at all.';
+    if (!d.webrtc) return 'This browser has no WebRTC support.' + escape;
+    if (d.error) return `WebRTC refused to start (${d.error}).` + escape;
     if (d.host === 0) {
-      return 'The browser produced no network candidates at all — WebRTC is being blocked. ' +
-             'Turn off the built-in VPN or proxy (Opera and Brave both ship one), disable privacy ' +
-             'extensions for this page, then reload.';
+      return 'The browser produced no network candidates at all, so WebRTC is blocked. ' +
+             'In Opera, check Settings → Privacy → WebRTC and set IP handling back to default; ' +
+             'the built-in VPN leaves that switch flipped even after you turn it off.' + escape;
     }
     if (d.srflx === 0) {
-      return 'The browser can only see the local network: STUN is unreachable, usually a VPN or a ' +
-             'strict firewall. Players on the same wifi may still connect; others will not.';
+      return 'Only local candidates were found: STUN is unreachable, usually a VPN or firewall. ' +
+             'Players on the same wifi may connect, others will not.' + escape;
     }
-    return 'The network looks fine here, so the room is probably no longer open — ' +
-           'ask the host to check their tab is still on the game, then try the link again.';
+    return 'The network looks fine here, so the room is probably closed — check the host still has the tab open.' + escape;
   }
 
   function friendly(err) {
     if (err.type === 'peer-unavailable') return 'No room with that code. Check the link, or ask the host to reopen the room.';
-    if (err.type === 'network' || err.type === 'server-error') return 'Connection service unreachable. Try again in a moment.';
+    if (err.type === 'network' || err.type === 'server-error') return 'The matchmaking service is unreachable. Try a relay server.';
     if (err.type === 'browser-incompatible') return 'This browser does not support peer-to-peer play.';
     return err.message || 'Connection failed.';
   }
 
-  api.retry = function () {
-    const code = api.code;
-    const name = localStorage.getItem('mogul.name') || 'Player';
-    try { if (peer) peer.destroy(); } catch (e) {}
-    peer = null; hostConn = null;
-    api.mode = null; net = null; LOCAL_ALL = true;
-    return join(code, name);
+  api.inviteLink = () => {
+    const q = api.transport === 'relay' ? '?relay=' + encodeURIComponent(relayURL()) : '';
+    return location.origin + location.pathname + q + '#' + api.code;
   };
-
-  api.peerCount = () => conns.filter(c => c.open).length;
-
-  api.send = (action) => { if (hostConn && hostConn.open) hostConn.send({ t: 'action', action }); };
-  api.broadcast = broadcast;
-  api.host = host;
-  api.join = join;
-  api.inviteLink = () => location.origin + location.pathname + '#' + api.code;
   api.codeFromURL = () => (location.hash || '').replace('#', '').toUpperCase().slice(0, 5) || null;
 
   return api;
