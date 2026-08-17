@@ -367,6 +367,12 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-2);
 .chatrow button{padding:6px 11px}
 
 /* ---------------- side panel ---------------- */
+/* Only the panel itself stops animating: the money that flies off a row and
+   the glow on whoever is playing are still news. */
+.noanim{animation:none !important}
+/* The lobby is rebuilt on every keystroke of someone's name; it should only
+   fade in the first time it opens. */
+#lobby.settled .card,#lobby.settled .teamcard{animation:none}
 .card{
   background:color-mix(in srgb, var(--panel) 88%, transparent);
   backdrop-filter:blur(9px) saturate(1.1);
@@ -1048,6 +1054,7 @@ const Engine = (() => {
       vacationPot: 0,
       deck: { surprise: shuffled(SURPRISE.length), treasure: shuffled(TREASURE.length) },
       log: [],
+      logSeq: 0,        // stable ids, so the UI can tell an old line from a new one
       lastMove: null,   // how the last token moved, so the UI can animate it
       moveSeq: 0,
       cardShow: null,   // transient: last card drawn, for the popup
@@ -1152,7 +1159,7 @@ const Engine = (() => {
   /* ---------- log ---------- */
 
   function log(s, html, meta) {
-    s.log.push({ t: Date.now(), html, meta: meta || null });
+    s.log.push({ t: Date.now(), id: ++s.logSeq, html, meta: meta || null });
     if (s.log.length > 200) s.log.shift();
   }
   const tag = (s, id) => {
@@ -3453,12 +3460,26 @@ function showPeekAt(i, px, py) {
 
 const lastCash = {};
 
+/* The HUD is thrown away and rebuilt on every action. Anything that was
+   already there keeps still; only genuinely new panels and lines animate,
+   otherwise every roll of the dice looks like a page reload. */
+let hudSeen = new Set(), hudPrev = new Set();
+function settled(node, key) {
+  if (hudPrev.has(key)) node.classList.add('noanim');
+  hudSeen.add(key);
+  return node;
+}
+function endHudPass() { hudPrev = hudSeen; hudSeen = new Set(); }
+
 function renderHUD() {
   const players = $('#hudPlayers'), props = $('#hudProps');
   const logSlot = $('#hudLog'), bar = $('#hudBar'), prompt = $('#hudPrompt');
   const centre = $('#hudCenter');
   if (!players) return;
   [players, props, logSlot, bar, prompt, centre].forEach(n => n.innerHTML = '');
+
+  // a panel that scrolls should not jump back to the top on every action
+  const propScroll = props.scrollTop;
 
   renderPlayerPanel(players);
   renderCenterLog(centre);
@@ -3467,6 +3488,9 @@ function renderHUD() {
   renderTradePanel(props);
   renderBar(bar);
   renderPrompt(prompt);
+
+  props.scrollTop = propScroll;
+  endHudPass();
 }
 
 function avatarNode(p) {
@@ -3477,7 +3501,7 @@ function avatarNode(p) {
 function renderPlayerPanel(slot) {
   // hosts keep the invite handy: latecomers and reconnects both need it
   if (net && net.mode === 'host') {
-    const chip = el('div', 'card roomchip');
+    const chip = settled(el('div', 'card roomchip'), 'roomchip');
     const peers = Net.peerCount ? Net.peerCount() : 0;
     chip.appendChild(el('div', 'roomcode',
       `Room <b>${esc(Net.short())}</b><span class="pmeta"> · ${peers} connected</span>`));
@@ -3492,12 +3516,12 @@ function renderPlayerPanel(slot) {
     chip.appendChild(copy);
     slot.appendChild(chip);
   } else if (net && net.mode === 'guest') {
-    const chip = el('div', 'card roomchip');
+    const chip = settled(el('div', 'card roomchip'), 'roomchip');
     chip.appendChild(el('div', 'roomcode', `Room <b>${esc(Net.short())}</b>`));
     slot.appendChild(chip);
   }
 
-  const card = el('div', 'card');
+  const card = settled(el('div', 'card'), 'players');
   S.order.forEach(id => {
     const p = Engine.P(S, id);
     const cur = Engine.current(S);
@@ -3538,7 +3562,7 @@ function renderChatPanel(slot) {
   const mine = myTeam();
   if (chatScope === 'team' && !mine) chatScope = 'all';
 
-  const card = el('div', 'card chatcard');
+  const card = settled(el('div', 'card chatcard'), 'chat');
 
   if (mine) {
     const tabs = el('div', 'chattabs');
@@ -3561,8 +3585,9 @@ function renderChatPanel(slot) {
   }
   shown.forEach(m => {
     const p = Engine.P(S, m.by);
-    const line = el('div', 'chatline' + (m.team ? ' team' : ''),
-      `<b style="color:${p ? p.color : '#fff'}">${esc(p ? p.name : '?')}</b> ${esc(m.text)}`);
+    const line = settled(el('div', 'chatline' + (m.team ? ' team' : ''),
+      `<b style="color:${p ? p.color : '#fff'}">${esc(p ? p.name : '?')}</b> ${esc(m.text)}`),
+      'chat:' + m.t + ':' + m.by);
     log.appendChild(line);
   });
   card.appendChild(log);
@@ -3611,7 +3636,7 @@ function renderCenterLog(slot) {
 
   const box = el('div', 'centerlog');
   S.log.slice(-9).reverse().forEach(l => {
-    const row = el('div', '', l.html);
+    const row = settled(el('div', '', l.html), 'log:' + (l.id != null ? l.id : l.t));
     if (l.meta && l.meta.kind === 'trade') {
       const ref = row.querySelector('.lref');
       if (ref) {
@@ -3649,15 +3674,15 @@ function hideTradeTip() { const t = $('#tradetip'); if (t) t.classList.remove('o
 
 function renderTradePanel(slot) {
   if (!S.trades.length) return;
-  const c = el('div', 'card');
+  const c = settled(el('div', 'card'), 'trades');
   c.appendChild(el('h3', '', `Open trades (${S.trades.length})`));
-  S.trades.forEach(t => c.appendChild(tradeCard(t)));
+  S.trades.forEach(t => c.appendChild(settled(tradeCard(t), 'trade:' + t.id)));
   slot.appendChild(c);
 }
 
 /* Bottom bar: whose turn it is, the roll/end action, and the tools. */
 function renderBar(slot) {
-  const card = el('div', 'card');
+  const card = settled(el('div', 'card'), 'bar');
   const cur = Engine.current(S);
 
   if (S.phase === 'ended' && !renderBar.celebrated) { renderBar.celebrated = true; Sfx.win(); }
@@ -3714,7 +3739,9 @@ function renderPrompt(slot) {
   if (!pd || S.phase !== 'playing') return;
   const acting = actorId();
 
-  const box = el('div', 'prompt');
+  const pd0 = S.pending;
+  const promptKey = 'prompt:' + (pd0 ? pd0.kind + ':' + (pd0.tile != null ? pd0.tile : '') + ':' + (pd0.player || '') : 'none');
+  const box = settled(el('div', 'prompt'), promptKey);
   const row = el('div', 'promptRow');
 
   if (pd.kind === 'buy' && pd.player === acting) {
@@ -3994,7 +4021,7 @@ function renderMyProperties(side) {
   const me = actorId();
   const mine = Object.keys(S.owned).map(Number).filter(i => S.owned[i].by === me).sort((a, b) => a - b);
 
-  const card = el('div', 'card props');
+  const card = settled(el('div', 'card props'), 'props');
   card.appendChild(el('h3', '', `My properties (${mine.length})`));
 
   if (!mine.length) {
@@ -4301,6 +4328,7 @@ function toast(msg) {
 function renderLobby() {
   let lob = $('#lobby');
   if (!lob) { lob = el('div'); lob.id = 'lobby'; document.body.appendChild(lob); }
+  else lob.classList.add('settled');   // already on screen: no second entrance
   const takenColors = S.players.map(p => p.color);
   const me = MY_ID ? Engine.P(S, MY_ID) : null;
 
