@@ -67,8 +67,20 @@ adresse collée dans **⚙ Use a relay server**, le lien d'invitation l'embarque
 
 - **Garde ton onglet ouvert.** C'est ton navigateur qui fait tourner la partie
   et arbitre les règles. Si tu fermes, la partie s'arrête.
-- **Déconnexion :** rouvrir le lien avec *exactement* le même pseudo récupère
-  la place, l'argent et les propriétés.
+- **Déconnexion :** rouvrir le lien **depuis le même navigateur** récupère la
+  place, l'argent et les propriétés. C'est le navigateur qui identifie le
+  siège, pas le pseudo : une clé aléatoire est rangée dans ton stockage local
+  à la première partie, envoyée à l'hôte au moment de rejoindre, et jamais
+  diffusée aux autres. Taper le pseudo de quelqu'un d'autre ne donne donc plus
+  rien — avant, ça donnait sa fortune.
+
+  Revers de la médaille : navigation privée, autre navigateur ou stockage
+  effacé = nouveau siège. Et pendant une partie, seuls ceux qui y ont déjà une
+  place peuvent rejoindre ; les autres peuvent regarder mais pas jouer.
+
+- **Abandonner :** un bouton *Give up* en bas du panneau des propriétés rend
+  tout à la banque — cases libérées, argent effacé — et la partie continue
+  sans toi. Deux clics, il n'y a pas de retour en arrière.
 
 Aucun serveur à payer : GitHub Pages ne sert que le fichier, et le canal des
 rooms tourne sur des brokers publics gratuits.

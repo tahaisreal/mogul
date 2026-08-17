@@ -389,6 +389,10 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-2);
 }
 .chatrow button{padding:6px 11px}
 
+.quitrow{margin-top:10px;display:flex;justify-content:center}
+.quitrow .btn{font-size:11.5px;padding:7px 11px;opacity:.75}
+.quitrow .btn:hover{opacity:1}
+
 /* ---- foldable panel ---- */
 .foldhead{
   display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;
@@ -1305,19 +1309,25 @@ const Engine = (() => {
     log(s, `<b>Game started with a randomized players order. Good luck!</b>`);
   }
 
-  function nextTurn(s) {
-    s.rolled = false; s.doubles = 0; s.pending = null;
+  /* The game is over when one side is left standing — whether the last
+     opponent was ruined or simply walked away mid-turn. */
+  function checkEnd(s) {
+    if (s.phase !== 'playing') return true;
     const living = alive(s);
     const sides = new Set(living.map(p => sideOf(s, p.id)));
-    if (sides.size <= 1) {
-      s.phase = 'ended';
-      s.winner = living[0] ? living[0].id : null;
-      const team = living[0] ? findTeam(s, teamOf(s, living[0].id)) : null;
-      s.winnerTeam = team ? team.id : null;
-      if (team) log(s, `<b>${team.emoji} ${esc(team.name)} wins the game together!</b>`);
-      else if (s.winner) log(s, `<b>${tag(s, s.winner)} wins the game!</b>`);
-      return;
-    }
+    if (sides.size > 1) return false;
+    s.phase = 'ended';
+    s.winner = living[0] ? living[0].id : null;
+    const team = living[0] ? findTeam(s, teamOf(s, living[0].id)) : null;
+    s.winnerTeam = team ? team.id : null;
+    if (team) log(s, `<b>${team.emoji} ${esc(team.name)} wins the game together!</b>`);
+    else if (s.winner) log(s, `<b>${tag(s, s.winner)} wins the game!</b>`);
+    return true;
+  }
+
+  function nextTurn(s) {
+    s.rolled = false; s.doubles = 0; s.pending = null;
+    if (checkEnd(s)) return;
     let guard = 0;
     do {
       s.turn = (s.turn + 1) % s.order.length;
@@ -1789,10 +1799,17 @@ const Engine = (() => {
       }
 
       case 'declareBankrupt': {
+        if (s.phase !== 'playing' || me.bankrupt) break;
         const d = s.pending;
         const creditor = d && d.kind === 'debt' && d.player === playerId ? d.to : null;
+        // walking away with no debt hands the lot back to the bank
+        if (!creditor && !(d && d.kind === 'debt' && d.player === playerId)) {
+          log(s, `${tag(s, playerId)} gave everything back to the bank and left the game`);
+        }
         bankrupt(s, playerId, creditor);
+        if (s.pending && s.pending.player === playerId) s.pending = null;
         if (current(s) && current(s).id === playerId) nextTurn(s);
+        else checkEnd(s);
         break;
       }
 
@@ -4138,6 +4155,7 @@ function renderMyProperties(side) {
 
   if (!mine.length) {
     card.appendChild(el('div', 'empty', 'Nothing yet. Land on a free tile and buy it.'));
+    card.appendChild(quitRow());
     side.appendChild(card);
     return;
   }
@@ -4157,7 +4175,37 @@ function renderMyProperties(side) {
     tiles.forEach(i => card.appendChild(propertyRow(i, me)));
   });
 
+  card.appendChild(quitRow());
   side.appendChild(card);
+}
+
+/* Leaving on purpose: everything goes back to the bank, the tiles are free
+   again, and the others play on. Two taps, because there is no undo. */
+function quitRow() {
+  const row = el('div', 'quitrow');
+  if (S.phase !== 'playing') return row;
+  const me = actorId();
+  const p = Engine.P(S, me);
+  if (!p || p.bankrupt) return row;
+  if (S.pending && S.pending.kind === 'debt' && S.pending.player === me) return row;  // the debt box asks already
+
+  const b = el('button', 'btn bad');
+  const label = LOCAL_ALL ? `🏳 ${p.name} gives up` : '🏳 Give up — everything to the bank';
+  b.textContent = label;
+  let armed = false, timer = null;
+  b.onclick = () => {
+    if (!armed) {
+      armed = true;
+      b.textContent = 'Tap again to hand it all back';
+      b.classList.add('arming');
+      timer = setTimeout(() => { armed = false; b.textContent = label; b.classList.remove('arming'); }, 4000);
+      return;
+    }
+    clearTimeout(timer);
+    act({ type: 'declareBankrupt' }, me);
+  };
+  row.appendChild(b);
+  return row;
 }
 
 /* clicking a tile on the board points at its row instead of opening a dialog */
@@ -4913,6 +4961,20 @@ const Net = (() => {
   ];
   const PEER_OPTS = { debug: 0, config: { iceServers: ICE } };
 
+  /* A random key kept in this browser's storage. It is sent when joining and
+     never broadcast, so nobody can learn it and claim a seat that is not
+     theirs — the old name-based reconnect let anyone do exactly that. */
+  function myUid() {
+    let u = '';
+    try { u = localStorage.getItem('mogul.uid') || ''; } catch (e) {}
+    if (!u) {
+      u = 'u' + Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12);
+      try { localStorage.setItem('mogul.uid', u); } catch (e) {}
+    }
+    return u;
+  }
+  const hello = (name) => ({ t: 'hello', name, uid: myUid() });
+
   const api = {
     mode: null,        // 'host' | 'guest'
     transport: null,   // 'p2p' | 'relay'
@@ -4927,6 +4989,7 @@ const Net = (() => {
   let closeAll = () => {};
   const peers = new Set();  // host: connected guests
   const seatByPeer = new Map();
+  const seatByUid = new Map();   // host-only, never sent: browser key -> seat
   let myName = 'Player';
 
   function setStatus(status, error) {
@@ -4950,15 +5013,28 @@ const Net = (() => {
   function onGuestMessage(peerId, msg) {
     if (msg.t === 'hello') {
       const name = String(msg.name || 'Player').slice(0, 14);
-      const existing = S.players.find(p => p.name === name);
+      const uid = String(msg.uid || '').slice(0, 40);
 
-      if (S.phase !== 'lobby') {
-        if (!existing) return send(peerId, { t: 'refused', reason: 'The game already started.' });
-        seatByPeer.set(peerId, existing.id);
-        send(peerId, { t: 'you', id: existing.id });
+      // Coming back: the key decides, and only the key. A name is a label.
+      const claimed = uid ? seatByUid.get(uid) : null;
+      const seatBack = claimed ? S.players.find(p => p.id === claimed) : null;
+      if (seatBack) {
+        seatByPeer.forEach((sid, pid) => { if (sid === seatBack.id && pid !== peerId) seatByPeer.delete(pid); });
+        seatByPeer.set(peerId, seatBack.id);
+        if (S.phase === 'lobby' && name && !S.players.some(p => p.id !== seatBack.id && p.name === name)) {
+          seatBack.name = name;
+        }
+        send(peerId, { t: 'you', id: seatBack.id });
+        if (S.phase === 'lobby') renderLobby(); else render();
         return broadcast();
       }
-      if (existing) return send(peerId, { t: 'refused', reason: 'That name is already taken in this room.' });
+
+      if (S.phase !== 'lobby') {
+        return send(peerId, { t: 'refused', reason: 'The game already started, and this browser has no seat in it.' });
+      }
+      if (S.players.some(p => p.name === name)) {
+        return send(peerId, { t: 'refused', reason: 'That name is already taken in this room.' });
+      }
 
       const taken = S.players.map(p => p.color);
       const color = PLAYER_COLORS.find(c => !taken.includes(c));
@@ -4967,6 +5043,7 @@ const Net = (() => {
       }
       const seat = S.players[S.players.length - 1].id;
       seatByPeer.set(peerId, seat);
+      if (uid) seatByUid.set(uid, seat);
       send(peerId, { t: 'you', id: seat });
       renderLobby();
       return broadcast();
@@ -5102,7 +5179,7 @@ const Net = (() => {
       hostConn.on('open', () => {
         settled = true; clearTimeout(stall);
         finishGuest(code, 'p2p');
-        send(null, { t: 'hello', name });
+        send(null, hello(name));
       });
       hostConn.on('data', onHostMessage);
       hostConn.on('close', () => { clearTimeout(stall); setStatus('error', 'The connection to the host dropped.'); });
@@ -5299,7 +5376,7 @@ const Net = (() => {
         });
         c.onclose(() => { if (api.status === 'open') setStatus('error', 'The connection dropped. Reload the link with the same name to get your seat back.'); });
 
-        send(null, { t: 'hello', name });
+        send(null, hello(name));
         return b.id;
       } catch (e) { try { c && c.close(); } catch (e2) {} refused = e; }
     }
@@ -5333,7 +5410,7 @@ const Net = (() => {
             if (!msg.host) { try { ws.close(); } catch (e) {} return reject(new Error('No room with that code on this relay.')); }
             send = (_to, data) => ws.send(JSON.stringify({ t: 'to', id: msg.host, data }));
             resolve();
-            send(null, { t: 'hello', name });
+            send(null, hello(name));
           }
           return;
         }
@@ -5418,6 +5495,8 @@ const Net = (() => {
       setStatus('error', e.message || String(e));
     }
   };
+
+  api.uid = myUid;
 
   api.retry = function (preferred) {
     const code = api.code || (location.hash || '').replace('#', '').toUpperCase();
