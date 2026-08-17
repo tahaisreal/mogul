@@ -10,17 +10,17 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%238b5cf6'/><circle cx='11' cy='14' r='4' fill='%23fff'/><circle cx='21' cy='14' r='4' fill='%23fff'/><circle cx='11' cy='15' r='2' fill='%23111'/><circle cx='21' cy='15' r='2' fill='%23111'/></svg>">
 <style>:root{
   --u:58px;            /* fallback: #board overrides it, #peek relies on it */
-  /* Warm room palette, tuned to sit beside the wooden table and the
-     mint board rather than fight them. */
-  --bg:#171310;
-  --panel:#231c17;
-  --panel-2:#2e251e;
-  --panel-3:#3c2f26;
-  --line:#4c3b2f;
-  --tile:#2e251e;
-  --tile-2:#251e18;
-  --ink:#f5ede3;
-  --muted:#b6a494;
+  /* Deep indigo room, warm amber accents: the panels sit back and let the
+     board and the money do the talking. */
+  --bg:#0e0d1a;
+  --panel:#1b1930;
+  --panel-2:#232141;
+  --panel-3:#2d2a50;
+  --line:#3a3663;
+  --tile:#232145;
+  --tile-2:#1a1836;
+  --ink:#eeecfa;
+  --muted:#a49fc6;
   --accent:#d99648;
   --accent-2:#f0bd7c;
   --good:#54c795;
@@ -100,7 +100,7 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-2);
   grid-template-columns:calc(var(--u) * var(--corner)) repeat(var(--per),var(--u)) calc(var(--u) * var(--corner));
   grid-template-rows:calc(var(--u) * var(--corner)) repeat(var(--per),var(--u)) calc(var(--u) * var(--corner));
   gap:2px;
-  background:#101021;border-radius:14px;padding:3px;
+  background:#0b0a18;border-radius:16px;padding:4px;
   transform-style:preserve-3d;
   transform:rotateX(var(--tilt)) translateY(calc(var(--board) * .04));
   transition:transform .45s cubic-bezier(.4,0,.2,1);
@@ -112,23 +112,25 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-2);
 }
 :root{--tilt:0deg}
 .tile{
-  position:relative;background:var(--tile);border-radius:5px;transform:translateZ(0);
+  position:relative;border-radius:7px;transform:translateZ(0);
+  background:linear-gradient(180deg,#262450 0%,#1c1a3a 62%,#191733 100%);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.05), 0 1px 0 rgba(0,0,0,.35);
   display:flex;flex-direction:column;overflow:hidden;
-  transition:background .25s, box-shadow .25s;
+  transition:box-shadow .2s, filter .2s;
   cursor:default;
 }
 .tile.clickable{cursor:pointer}
-.tile:hover{box-shadow:inset 0 0 0 1.5px var(--accent-2);transform:translateZ(10px)}
+.tile:hover{box-shadow:inset 0 0 0 1.5px rgba(240,189,124,.85), 0 0 18px rgba(240,189,124,.25);filter:brightness(1.08)}
 
 /* hover focus: light up what matters, never shade the rest */
 .tile.hl{
   box-shadow:inset 0 0 0 2px var(--own,var(--accent-2)), 0 0 22px var(--own,var(--accent-2));
   transform:translateZ(14px);z-index:4;
 }
-.tile.corner{background:var(--tile-2)}
+.tile.corner{background:linear-gradient(160deg,#2b2857 0%,#1b1938 70%)}
 .tile-body{
   position:absolute;inset:0;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;gap:2px;padding:4px;
+  align-items:center;justify-content:center;gap:2px;padding:4px;z-index:3;
 }
 /* Side tiles rotate so the name reads along the edge. A rotated box swaps its
    axes, so the body is sized height-for-width against its tile. */
@@ -148,11 +150,12 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-2);
   font-weight:800;line-height:1.07;text-align:center;letter-spacing:-.2px;
   padding:0 1px;overflow-wrap:normal;word-break:keep-all;hyphens:none;
 }
-.t-price{font-size:10px;font-weight:800;color:#cfcdea}
+.t-price{font-size:10px;font-weight:800;color:#b6b1dd;letter-spacing:.2px}
 .t-flag{
   width:clamp(14px, calc(var(--u) * .3), 22px);
   height:clamp(14px, calc(var(--u) * .3), 22px);
-  border-radius:50%;overflow:hidden;box-shadow:0 0 0 1.5px rgba(255,255,255,.8);flex:0 0 auto;
+  border-radius:50%;overflow:hidden;flex:0 0 auto;
+  box-shadow:0 0 0 1.5px rgba(255,255,255,.85), 0 2px 6px rgba(0,0,0,.5);
 }
 .t-flag svg{width:100%;height:100%;display:block}
 .t-icon{font-size:clamp(13px, calc(var(--u) * .28), 19px);line-height:1}
@@ -176,7 +179,7 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-2);
 .side-r .strip{right:0;top:0;bottom:0;width:6px}
 
 /* buildings row */
-.houses{position:absolute;display:flex;gap:2px;z-index:3}
+.houses{position:absolute;display:flex;gap:2px;z-index:4}
 .side-t .houses{top:8px;left:0;right:0;justify-content:center}
 .side-b .houses{bottom:8px;left:0;right:0;justify-content:center}
 .side-l .houses{left:8px;top:0;bottom:0;flex-direction:column;justify-content:center}
@@ -279,23 +282,43 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-2);
 }
 
 /* ---- flat board: additions over the shared tile styles ---- */
-#scene.flat{display:flex;align-items:center;justify-content:center;background:var(--bg);overflow:hidden}
+/* The country is a soft glow bleeding in from the outer edge — it tints the
+   tile without ever competing with a player's colour. The block is pushed
+   past the edge so only its inner side is allowed to fade. */
+#scene.flat{display:flex;align-items:center;justify-content:center;background:radial-gradient(120% 90% at 50% 0%, #16142a 0%, #0a0914 70%);overflow:hidden}
 #hud.flatview .hud-slot.bc{bottom:var(--barlift,18px)}
 #scene.flat #board{transform:none}
 #scene.flat #center{justify-content:flex-start;padding-top:5%}
 /* country band on the outer edge, owner bar on the inner one — opposite ends,
    so a country colour can never be mistaken for a player colour */
-.tile .band{position:absolute;z-index:1}
-.side-t .band{top:0;left:0;right:0;height:15%}
-.side-b .band{bottom:0;left:0;right:0;height:15%}
-.side-l .band{left:0;top:0;bottom:0;width:15%}
-.side-r .band{right:0;top:0;bottom:0;width:15%}
-.side-t .strip{top:auto;bottom:0;height:7px}
-.side-b .strip{bottom:auto;top:0;height:7px}
-.side-l .strip{left:auto;right:0;width:7px}
-.side-r .strip{right:auto;left:0;width:7px}
-.tile .strip{opacity:0}
+/* The country bleeds in from the outer edge and dies out before the middle:
+   the tile stays dark enough to read, and the only hard colour on the board
+   is a deed. */
+.tile .band{
+  position:absolute;inset:0;z-index:0;pointer-events:none;
+  background:linear-gradient(var(--gdir,180deg),
+    var(--gc,transparent) 0%,
+    color-mix(in srgb, var(--gc,transparent) 55%, transparent) 26%,
+    rgba(0,0,0,0) 62%);
+  opacity:.32;
+}
+.side-t{--gdir:180deg}
+.side-b{--gdir:0deg}
+.side-l{--gdir:90deg}
+.side-r{--gdir:270deg}
+.tile.owned .band{opacity:.2}
+@supports not (background:color-mix(in srgb,red 50%,transparent)){
+  .tile .band{background:linear-gradient(var(--gdir,180deg), var(--gc,transparent) 0%, rgba(0,0,0,0) 60%)}
+}
+
+/* Owned is the one thing that gets a hard edge, so a deed reads instantly. */
+.tile .strip{opacity:0;z-index:2;transition:opacity .25s}
 .tile.owned .strip{opacity:1}
+.side-t .strip{top:0;left:0;right:0;height:9px;border-radius:7px 7px 3px 3px}
+.side-b .strip{bottom:0;left:0;right:0;height:9px;border-radius:3px 3px 7px 7px}
+.side-l .strip{left:0;top:0;bottom:0;width:9px;border-radius:7px 3px 3px 7px}
+.side-r .strip{right:0;top:0;bottom:0;width:9px;border-radius:3px 7px 7px 3px}
+.tile.owned{box-shadow:inset 0 0 0 1px rgba(255,255,255,.08), 0 0 14px -4px var(--ownc,transparent)}
 .tile.dim{filter:brightness(.42) saturate(.5)}
 .tile .mortlabel{
   position:absolute;z-index:4;font-size:7.5px;font-weight:900;letter-spacing:.4px;
@@ -365,6 +388,33 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-2);
   color:var(--ink);font:600 12.5px/1.2 var(--ui);padding:7px 9px;
 }
 .chatrow button{padding:6px 11px}
+
+/* ---- foldable panel ---- */
+.foldhead{
+  display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;
+  margin:0 0 6px;font:800 12px/1 var(--display);letter-spacing:.6px;text-transform:uppercase;color:var(--muted);
+}
+.foldhead:hover{color:var(--ink)}
+.foldhead .chev{margin-left:auto;transition:transform .2s;font-size:11px;color:var(--muted)}
+.foldhead.closed .chev{transform:rotate(-90deg)}
+.foldhead .count{font-size:11px;color:var(--accent-2)}
+
+/* ---- live auction ---- */
+.auction{display:flex;flex-direction:column;gap:9px;align-items:stretch}
+.auchead{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.aucbid{font-family:var(--display);font-size:26px;font-weight:800;color:var(--accent-2);line-height:1}
+.aucwho{font-size:12px;color:var(--muted);font-weight:700}
+.aucclock{height:7px;border-radius:99px;background:rgba(255,255,255,.09);overflow:hidden}
+.aucclock i{display:block;height:100%;width:100%;border-radius:99px;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2))}
+.aucclock.hot i{background:linear-gradient(90deg,#e0454e,#f0913e)}
+.aucrow{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.aucrow .btn{padding:9px 12px;font-size:13px}
+.aucseat{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:center;
+  padding:6px;border-radius:11px;background:var(--panel-2)}
+.aucseat .who{display:flex;align-items:center;gap:6px;font-weight:800;font-size:12.5px;min-width:96px}
+.aucseat .who i{width:11px;height:11px;border-radius:50%}
+.aucseat.outbid{opacity:.45}
 
 /* ---------------- side panel ---------------- */
 /* Only the panel itself stops animating: the money that flies off a row and
@@ -1482,31 +1532,33 @@ const Engine = (() => {
 
   /* ---------- auctions ---------- */
 
+  const AUCTION_MS = 3000;          // the clock every raise puts back
+  const BID_STEPS = [2, 10, 50, 100];
+
   function startAuction(s, tile) {
-    const bidders = alive(s).map(p => p.id);
-    s.pending = { kind: 'auction', tile, bid: 0, leader: null, bidders, turnIdx: 0 };
-    log(s, `${tileTag(tile)} goes to auction`);
+    s.pending = {
+      kind: 'auction', tile, bid: 0, leader: null, seq: 0,
+      endsAt: Date.now() + AUCTION_MS, out: [],
+    };
+    log(s, `${tileTag(tile)} goes to auction — 3 seconds, anyone can raise`);
   }
 
-  function auctionAdvance(s) {
+  /* The clock is the host's: guests show their own countdown, but only the
+     host's tick can close a sale, so there is exactly one referee. */
+  function resolveAuction(s) {
     const a = s.pending;
     if (!a || a.kind !== 'auction') return;
-    if (a.bidders.length === 0) {
-      log(s, `${tileTag(a.tile)} found no buyer`);
-      s.pending = null; return;
-    }
-    if (a.bidders.length === 1 && a.leader === a.bidders[0]) {
+    if (a.leader && P(s, a.leader) && !P(s, a.leader).bankrupt) {
       s.owned[a.tile] = { by: a.leader, houses: 0, mortgaged: false };
       P(s, a.leader).cash -= a.bid;
-      log(s, `${tag(s, a.leader)} won ${tileTag(a.tile)} at auction for $${a.bid}`);
-      s.pending = null; return;
+      log(s, `${tag(s, a.leader)} won ${tileTag(a.tile)} at auction for <b>$${a.bid}</b>`);
+    } else {
+      log(s, `${tileTag(a.tile)} found no buyer`);
     }
-    a.turnIdx = a.turnIdx % a.bidders.length;
-    let guard = 0;                       // never let the leader bid against itself
-    while (a.bidders[a.turnIdx] === a.leader && guard++ < 10) {
-      a.turnIdx = (a.turnIdx + 1) % a.bidders.length;
-    }
+    s.pending = null;
   }
+
+
 
   /* ============================================================
      applyAction — the single entry point
@@ -1590,27 +1642,37 @@ const Engine = (() => {
         break;
       }
 
+      /* Anyone, any time, as long as the clock is still running. */
       case 'bid': {
         const au = s.pending;
         if (!au || au.kind !== 'auction') break;
-        if (au.bidders[au.turnIdx] !== playerId) break;
-        const amount = Math.max(au.bid + 10, a.amount || au.bid + 10);
-        if (P(s, playerId).cash < amount) break;
-        au.bid = amount; au.leader = playerId;
-        log(s, `${tag(s, playerId)} bid $${amount}`);
-        au.turnIdx = (au.turnIdx + 1) % au.bidders.length;
-        auctionAdvance(s);
+        if (me.bankrupt || au.out.includes(playerId)) break;
+        if (Date.now() > au.endsAt + 400) break;          // a hair of slack for the wire
+        const step = BID_STEPS.includes(a.inc) ? a.inc : 10;
+        const amount = au.bid + step;
+        if (me.cash < amount) break;
+        au.bid = amount; au.leader = playerId; au.seq++;
+        au.endsAt = Date.now() + AUCTION_MS;
+        log(s, `${tag(s, playerId)} raised to <b>$${amount}</b> for ${tileTag(au.tile)}`);
         break;
       }
 
       case 'passBid': {
         const au = s.pending;
         if (!au || au.kind !== 'auction') break;
-        if (au.bidders[au.turnIdx] !== playerId) break;
-        au.bidders.splice(au.turnIdx, 1);
-        if (au.bidders.length === 0) { s.pending = null; break; }
-        au.turnIdx = au.turnIdx % au.bidders.length;
-        auctionAdvance(s);
+        if (!au.out.includes(playerId)) au.out.push(playerId);
+        const still = alive(s).filter(p => !au.out.includes(p.id));
+        // nobody left to raise: no point running the clock down
+        if (!still.length) resolveAuction(s);
+        break;
+      }
+
+      /* Fired by the host's timer, never by a person. */
+      case 'auctionTick': {
+        const au = s.pending;
+        if (!au || au.kind !== 'auction') break;
+        if (Date.now() < au.endsAt) break;
+        resolveAuction(s);
         break;
       }
 
@@ -1852,6 +1914,7 @@ const Engine = (() => {
   }
 
   return {
+    AUCTION_MS, BID_STEPS,
     teamOf, sideOf, sameSide, teamMates, findTeam,
     createState, addPlayer, applyAction, startGame,
     P, current, alive, ownerOf, ownsFullSet, countOwned, netWorth, rentFor,
@@ -3004,9 +3067,8 @@ const Board2D = (() => {
     node.dataset.i = i;
 
     if (t.group && GROUPS[t.group]) {
-      const band = el('div', 'band');
-      band.style.background = GROUPS[t.group].color;
-      node.appendChild(band);
+      node.style.setProperty('--gc', GROUPS[t.group].color);
+      node.appendChild(el('div', 'band'));
     }
     node.appendChild(el('div', 'strip'));
 
@@ -3161,7 +3223,10 @@ const Board2D = (() => {
       const strip = node.querySelector('.strip');
       const owner = o ? Engine.P(S, o.by) : null;
       node.classList.toggle('owned', !!owner);
-      if (owner) strip.style.background = owner.color;
+      if (owner) {
+        strip.style.background = owner.color;
+        node.style.setProperty('--ownc', owner.color);
+      } else node.style.removeProperty('--ownc');
       node.classList.toggle('mortgaged', !!(o && o.mortgaged));
       let label = node.querySelector('.mortlabel');
       if (o && o.mortgaged) {
@@ -3756,24 +3821,7 @@ function renderPrompt(slot) {
     skip.onclick = () => act({ type: 'skipBuy' });
     row.append(buy, skip);
   } else if (pd.kind === 'auction') {
-    const t = BOARD[pd.tile];
-    const bidder = pd.bidders[pd.turnIdx % pd.bidders.length];
-    box.appendChild(el('div', 'promptTitle', `Auction — ${esc(t.name)}`));
-    box.appendChild(el('div', 'promptSub',
-      `Highest bid <span class="promptPrice">$${pd.bid}</span>${pd.leader ? ' by ' + esc(Engine.P(S, pd.leader).name) : ''}`));
-    if (bidder !== acting) {
-      box.appendChild(el('div', 'pmeta', `Waiting for ${esc(Engine.P(S, bidder).name)}…`));
-    } else {
-      [10, 50, 100].forEach(inc => {
-        const b = el('button', 'btn', `+$${inc}`);
-        b.onclick = () => act({ type: 'bid', amount: pd.bid + inc });
-        if (Engine.P(S, acting).cash < pd.bid + inc) b.disabled = true;
-        row.appendChild(b);
-      });
-      const p = el('button', 'btn bad', 'Pass');
-      p.onclick = () => act({ type: 'passBid' });
-      row.appendChild(p);
-    }
+    renderAuction(box, pd);
   } else if (pd.kind === 'debt' && pd.player === acting) {
     box.appendChild(el('div', 'promptTitle', `You owe $${pd.amount}`));
     box.appendChild(el('div', 'promptSub',
@@ -3842,10 +3890,7 @@ function actorId() {
   // hot-seat: this browser acts as whoever the game is waiting on
   if (!LOCAL_ALL) return MY_ID;
   const pd = S.pending;
-  if (pd) {
-    if (pd.kind === 'auction') return pd.bidders[pd.turnIdx % pd.bidders.length];
-    if (pd.player) return pd.player;
-  }
+  if (pd && pd.kind !== 'auction' && pd.player) return pd.player;
   const c = Engine.current(S);
   return c ? c.id : MY_ID;
 }
@@ -3908,20 +3953,78 @@ function renderActions(box) {
   else add('End turn ➜', 'good', () => act({ type: 'endTurn' }));
 }
 
+/* The clock is redrawn from the local clock rather than the host's, so a
+   badly set system time cannot make the bar look finished when it is not. */
+let aucSeqSeen = -1, aucLocalEnd = 0;
+function auctionLeft(au) {
+  if (au.seq !== aucSeqSeen) { aucSeqSeen = au.seq; aucLocalEnd = Date.now() + Engine.AUCTION_MS; }
+  return Math.max(0, aucLocalEnd - Date.now());
+}
+
 function renderAuction(box, au) {
   const t = BOARD[au.tile];
-  const bidder = au.bidders[au.turnIdx];
-  box.appendChild(el('div', '', `<b>Auction — ${esc(t.name)}</b><br>
-    Highest bid: <span class="money">$${au.bid}</span> ${au.leader ? 'by ' + esc(Engine.P(S, au.leader).name) : ''}`));
-  const acting = actorId();
-  if (bidder !== acting) { box.appendChild(el('div', 'pmeta', `Waiting for ${esc(Engine.P(S, bidder).name)}…`)); return; }
-  [10, 50, 100].forEach(inc => {
-    const b = el('button', 'btn', `+$${inc}`);
-    b.onclick = () => act({ type: 'bid', amount: au.bid + inc });
-    if (Engine.P(S, acting).cash < au.bid + inc) b.disabled = true;
-    box.appendChild(b);
+  const wrap = el('div', 'auction');
+
+  const head = el('div', 'auchead');
+  head.append(
+    el('div', '', `<b>Auction</b> · ${esc(t.name)}`),
+    el('div', 'aucbid', `$${au.bid}`));
+  wrap.appendChild(head);
+  wrap.appendChild(el('div', 'aucwho', au.leader
+    ? `Leading: ${esc(Engine.P(S, au.leader).name)} — going once…`
+    : `Opening bid $${Engine.BID_STEPS[0]} — nobody has raised yet`));
+
+  const left = auctionLeft(au);
+  const clock = el('div', 'aucclock' + (left < 1200 ? ' hot' : ''));
+  const fill = el('i');
+  clock.appendChild(fill);
+  wrap.appendChild(clock);
+  // width now, then let the browser run it down: survives HUD rebuilds
+  fill.style.transition = 'none';
+  fill.style.width = (left / Engine.AUCTION_MS * 100) + '%';
+  requestAnimationFrame(() => {
+    fill.style.transition = `width ${left}ms linear`;
+    fill.style.width = '0%';
   });
-  const p = el('button', 'btn bad', 'Pass'); p.onclick = () => act({ type: 'passBid' }); box.appendChild(p);
+
+  // online you bid for yourself; around one screen every seat gets its row
+  const seats = (LOCAL_ALL ? Engine.alive(S) : Engine.alive(S).filter(p => p.id === MY_ID));
+  seats.forEach(p => {
+    const outOf = au.out.includes(p.id);
+    const seat = el('div', 'aucseat' + (outOf ? ' outbid' : ''));
+    seat.appendChild(el('div', 'who', `<i style="background:${p.color}"></i>${esc(p.name)}`));
+    if (outOf) {
+      seat.appendChild(el('div', 'pmeta', 'passed'));
+    } else {
+      Engine.BID_STEPS.forEach(inc => {
+        const b = el('button', 'btn' + (inc === 10 ? ' primary' : ''), `+$${inc}`);
+        b.disabled = p.cash < au.bid + inc;
+        b.onclick = () => { Sfx.click(); act({ type: 'bid', inc }, p.id); };
+        seat.appendChild(b);
+      });
+      const pass = el('button', 'btn bad', 'Pass');
+      pass.onclick = () => act({ type: 'passBid' }, p.id);
+      seat.appendChild(pass);
+    }
+    wrap.appendChild(seat);
+  });
+  if (!seats.length) wrap.appendChild(el('div', 'pmeta', 'Watching the bidding…'));
+
+  box.appendChild(wrap);
+}
+
+/* Only the host's clock closes a sale; everyone else just watches it tick. */
+let auctionTimer = null;
+function pumpAuction() {
+  clearTimeout(auctionTimer);
+  auctionTimer = null;
+  const pd = S.pending;
+  if (!pd || pd.kind !== 'auction') return;
+  if (net && net.mode === 'guest') return;
+  const wait = Math.max(60, pd.endsAt - Date.now() + 30);
+  auctionTimer = setTimeout(() => {
+    if (S.pending && S.pending.kind === 'auction') act({ type: 'auctionTick' }, S.players[0].id);
+  }, wait);
 }
 
 /* ============================================================
@@ -4022,7 +4125,16 @@ function renderMyProperties(side) {
   const mine = Object.keys(S.owned).map(Number).filter(i => S.owned[i].by === me).sort((a, b) => a - b);
 
   const card = settled(el('div', 'card props'), 'props');
-  card.appendChild(el('h3', '', `My properties (${mine.length})`));
+  const open = localStorage.getItem('mogul.props') !== 'closed';
+  const head = el('div', 'foldhead' + (open ? '' : ' closed'),
+    `My properties <span class="count">${mine.length}</span><span class="chev">▼</span>`);
+  head.onclick = () => {
+    localStorage.setItem('mogul.props', open ? 'closed' : 'open');
+    Sfx.click();
+    renderHUD();
+  };
+  card.appendChild(head);
+  if (!open) { side.appendChild(card); return; }
 
   if (!mine.length) {
     card.appendChild(el('div', 'empty', 'Nothing yet. Land on a free tile and buy it.'));
@@ -4081,14 +4193,17 @@ function bagHTML(bag) {
   return bits.length ? bits.join(' ') : '<span class="pmeta">nothing</span>';
 }
 
-function openTrade(preselect) {
-  const me = actorId();
+/* `seed` pre-fills the builder with a deal being answered, and `asWho` says
+   who is doing the answering — around one screen that is not always you. */
+function openTrade(preselect, seed, asWho) {
+  const me = asWho || actorId();
   const others = S.players.filter(p => p.id !== me && !p.bankrupt);
   if (!others.length) { toast('No one to trade with'); return; }
 
   let target = preselect || null;
-  const give = { cash: 0, tiles: [] };
-  const want = { cash: 0, tiles: [] };
+  const give = seed ? { cash: seed.give.cash, tiles: [...seed.give.tiles] } : { cash: 0, tiles: [] };
+  const want = seed ? { cash: seed.want.cash, tiles: [...seed.want.tiles] } : { cash: 0, tiles: [] };
+  const counterOf = seed ? seed.counterOf : null;
   const body = el('div');
   body.dataset.note = '';
 
@@ -4219,13 +4334,18 @@ function openTrade(preselect) {
     sendBtn = el('button', 'btn primary wide');
     sendBtn.style.marginTop = '12px';
     sendBtn.onclick = () => {
-      act({ type: 'proposeTrade', to: target, note: body.dataset.note, give, want });
+      // a counter answers the old offer: it does not stack on top of it
+      if (counterOf) act({ type: 'respondTrade', id: counterOf, accept: false }, me);
+      act({ type: 'proposeTrade', to: target, note: body.dataset.note, give, want }, me);
       closeModal();
-      toast('Offer sent — everyone can see it');
+      toast(counterOf ? 'Counter-offer sent' : 'Offer sent — everyone can see it');
     };
     body.appendChild(sendBtn);
     refresh();
-    modalTitle('Create a trade', `Public offer. Only ${esc(them.name)} can accept or decline it.`);
+    modalTitle(counterOf ? 'Counter-offer' : 'Create a trade',
+      counterOf
+        ? `Their offer is on the table reversed — change what you like, then send it back to ${esc(them.name)}.`
+        : `Public offer. Only ${esc(them.name)} can accept or decline it.`);
   }
 
   modal('Create a trade', '', body, true);
@@ -4282,7 +4402,17 @@ function tradeCard(t) {
     const no = el('button', 'btn bad');
     no.textContent = LOCAL_ALL ? `✕ ${to.name} declines` : '✕ Decline';
     no.onclick = () => act({ type: 'respondTrade', id: t.id, accept: false }, t.to);
-    foot.append(yes, no);
+    // Declining ends a conversation; countering keeps it going, which is what
+    // people actually do at a table.
+    const haggle = el('button', 'btn');
+    haggle.textContent = '⇄ Counter';
+    haggle.title = 'Answer with your own version of this deal';
+    haggle.onclick = () => openTrade(t.from, {
+      counterOf: t.id,
+      give: { cash: t.want.cash, tiles: [...t.want.tiles] },
+      want: { cash: t.give.cash, tiles: [...t.give.tiles] },
+    }, t.to);
+    foot.append(yes, haggle, no);
   }
   if (canWithdraw && !canAnswer) {
     const c = el('button', 'btn');
@@ -4726,6 +4856,7 @@ function settingsColumn(readOnly) {
 
 function render() {
   if (S.phase === 'lobby') { renderLobby(); return; }
+  pumpAuction();
   syncPieces();
   renderDice(false);
   renderHUD();

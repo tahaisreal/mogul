@@ -83,6 +83,7 @@ Tout flotte par-dessus le plateau :
   actions — le plus récent en haut, les anciens qui s'effacent en descendant
 - **En haut à gauche** : la room, les joueurs et leur argent
 - **En bas à droite** : tes propriétés, avec construire / vendre / hypothéquer
+  — le titre du panneau se clique pour le replier quand il gêne le plateau
 - **En bas à gauche** : le chat, en ligne uniquement
 - **En bas au centre** : lancer, échanger, couper le son, changer de vue
 - **Par-dessus le journal** : toute décision à prendre (acheter, enchérir,
@@ -108,9 +109,10 @@ aéroports et trois compagnies (électricité, gaz, eau).
 Le Maroc, ce sont Casablanca, Marrakech et Rabat, avec l'aéroport CMN juste à
 côté.
 
-Sur chaque case, la couleur du pays est sur le bord extérieur et la couleur du
-propriétaire sur le bord intérieur — aux deux extrémités opposées, pour qu'un
-orange de pays ne se confonde jamais avec un rouge de joueur.
+Le pays est un dégradé doux qui entre par le bord extérieur et meurt avant le
+milieu de la case. **La seule couleur franche du plateau, c'est un titre de
+propriété** : dès que quelqu'un achète, une barre nette de sa couleur apparaît
+sur le bord extérieur. Tant que la case est libre, il n'y a qu'une teinte.
 
 Une propriété hypothéquée devient grise, se hachure, et affiche MORTGAGED sur
 sa barre de propriétaire.
@@ -118,6 +120,26 @@ sa barre de propriétaire.
 Rien dans le code ne compte les cases à la main : la taille de l'anneau est
 déduite des données (`TILES`, `PER_SIDE`, `CORNER_AT`), donc changer la carte
 ne demande pas de retoucher le moteur ni les deux plateaux.
+
+## Les enchères en direct
+
+Réglage **Auction**. Quand quelqu'un refuse d'acheter, la case part aux
+enchères : **3 secondes au compteur, et chaque relance les remet à zéro**.
+Tout le monde peut relancer en même temps, de +2$, +10$, +50$ ou +100$ — pas
+de tour de parole. Quand le compteur tombe à zéro, la meilleure offre emporte
+la case et paie ; si personne n'a relancé, la case reste libre.
+
+L'horloge qui compte est celle de l'hôte : les autres écrans affichent leur
+propre décompte pour rester fluides, mais une seule machine peut conclure une
+vente. Une relance envoyée juste au buzzer passe encore (400 ms de marge pour
+le réseau).
+
+## Négocier au lieu de refuser
+
+Sur une offre reçue, à côté d'**Accepter** et **Refuser**, il y a
+**⇄ Counter** : ça rouvre le constructeur d'échange avec l'offre inversée,
+déjà remplie. Tu changes ce que tu veux, tu renvoies — l'offre d'origine est
+retirée au passage, donc une seule proposition reste sur la table à la fois.
 
 ## Deux vues, un seul plateau
 
