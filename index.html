@@ -633,7 +633,7 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-2);
 .sw .eye{width:9px;height:9px;background:#fff;border-radius:50%;display:none;align-items:center;justify-content:center}
 .sw.sel .eye{display:flex}
 .sw .eye::after{content:'';width:4px;height:4px;background:#111;border-radius:50%}
-input[type=text],input[type=number],textarea,select{
+input[type=text],input[type=number],input[type=email],input[type=password],textarea,select{
   background:var(--panel-2);border:1px solid var(--line);color:var(--ink);
   padding:10px 12px;border-radius:10px;font:inherit;width:100%;
 }
@@ -777,8 +777,8 @@ input[type=text],input[type=number],textarea,select{
 .pchip:hover{background:var(--panel-3);transform:translateY(-1px)}
 .pickrow{transition:background .18s var(--ease), transform .12s var(--ease)}
 .pickrow:hover{transform:translateX(3px)}
-input[type=text],input[type=number],textarea,select{transition:border-color .2s var(--ease), background .2s var(--ease)}
-input[type=text]:focus,input[type=number]:focus{border-color:var(--accent);outline:none}
+input[type=text],input[type=number],input[type=email],input[type=password],textarea,select{transition:border-color .2s var(--ease), background .2s var(--ease)}
+input[type=text]:focus,input[type=number]:focus,input[type=email]:focus,input[type=password]:focus{border-color:var(--accent);outline:none}
 .sw-toggle.on{background:var(--accent)}
 .slider{accent-color:var(--accent)}
 .money{background:var(--accent);color:#2a1c0c}
@@ -5450,7 +5450,10 @@ const Account = (() => {
 
   /* Set once, when the project exists. Kept overridable from storage so a
      second deployment can point at its own project without a rebuild. */
-  const BUILT_IN = { url: '', anonKey: '' };
+  const BUILT_IN = {
+    url: 'https://hggaffhuamgwodimxqeg.supabase.co',
+    anonKey: 'sb_publishable_IyE5NhdsEFVVFEkKpYJkyA__ZArMZVk',
+  };
 
   const api = {
     status: 'off',    // off | loading | out | in | busy | error
@@ -5542,7 +5545,7 @@ const Account = (() => {
       return paint();
     }
     api.status = 'in';
-    if (was !== api.user.id || !api.profile) await refresh();
+    if (was !== api.user.id || !api.profile) await refresh();   // new face, new name
     paint();
   }
 
@@ -5550,18 +5553,28 @@ const Account = (() => {
      brand-new signup can outrun its own trigger by a few milliseconds. */
   async function refresh() {
     if (!sb || !api.user) return;
-    for (let tries = 0; tries < 4 && !api.profile; tries++) {
+    const forId = api.user.id;
+
+    /* Fetched into a local, never straight into the live field: keeping
+       whatever was already there meant signing in as somebody else on the
+       same machine left you wearing the previous player's name. */
+    let profile = null;
+    for (let tries = 0; tries < 4 && !profile; tries++) {
       const { data } = await sb.from('profiles')
-        .select('id, username').eq('id', api.user.id).maybeSingle();
-      if (data) { api.profile = data; break; }
+        .select('id, username').eq('id', forId).maybeSingle();
+      if (data) { profile = data; break; }
       await new Promise(r => setTimeout(r, 250));
     }
     const { data: st } = await sb.from('player_stats')
       .select('games_played, games_won, current_streak, best_streak')
-      .eq('player_id', api.user.id).maybeSingle();
+      .eq('player_id', forId).maybeSingle();
+
+    // somebody signed in again while we were waiting: those answers are stale
+    if (!api.user || api.user.id !== forId) return;
+    api.profile = profile;
     api.stats = st || { games_played: 0, games_won: 0, current_streak: 0, best_streak: 0 };
   }
-  api.refresh = async () => { api.profile = null; await refresh(); paint(); };
+  api.refresh = async () => { await refresh(); paint(); };
 
   /* ---------- doors ---------- */
 
@@ -5636,7 +5649,6 @@ const Account = (() => {
       teams: !!teams,
     });
     if (error && error.code !== '23505') { written.delete(gameId); return; }
-    api.profile = api.profile || null;
     await refresh();
     paint();
   };
