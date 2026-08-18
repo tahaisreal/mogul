@@ -918,6 +918,12 @@ input[type=text]:focus,input[type=number]:focus,input[type=email]:focus,input[ty
 .roomcode{font-family:var(--display);font-size:13px;color:var(--muted);white-space:nowrap}
 .roomcode b{color:var(--accent-2);letter-spacing:1.5px;font-size:15px}
 .roomchip .btn{margin-left:auto;padding:8px 11px;font-size:12px}
+.acctchip{display:flex;align-items:center;gap:7px;font-family:var(--display);font-weight:800;
+  font-size:13.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acctchip i{width:8px;height:8px;border-radius:50%;background:#7ee08b;flex:0 0 8px;
+  box-shadow:0 0 7px rgba(126,224,139,.75)}
+/* alone in the row it has no name to sit beside, so it takes the width */
+.viewchip .btn:only-child{margin-left:0;width:100%}
 
 .connecting::after{
   content:'';display:inline-block;width:9px;height:9px;margin-left:7px;
@@ -3596,7 +3602,9 @@ let net = null;          // set by net.js when online
    and both answer the same calls; VIEW says which one is mounted. Nothing
    below ever names a renderer directly — that is what kept the old DOM
    fallback fighting the 3D board over hover and animation. */
-let VIEW = localStorage.getItem('mogul.view') === '2d' ? '2d' : '3d';
+/* The flat board is what you get unless you have asked for the other one:
+   it reads at a glance, needs no WebGL, and costs nothing on a phone. */
+let VIEW = localStorage.getItem('mogul.view') === '3d' ? '3d' : '2d';
 let Board = VIEW === '2d' ? Board2D : Board3D;
 
 function bindBoard(b) {
@@ -3790,7 +3798,23 @@ function avatarNode(p) {
   return a;
 }
 
+/* Who you are and which board you are looking at: the two things you
+   change about your own screen rather than about the game, so they sit
+   together above everything the game owns. */
+function renderViewChip(slot) {
+  const chip = settled(el('div', 'card roomchip viewchip'), 'viewchip');
+  const who = Account.name();
+  if (who) chip.appendChild(el('div', 'acctchip', `<i></i>${esc(who)}`));
+  const b = el('button', 'btn', VIEW === '2d' ? '🧊 3D board' : '🀫 Flat board');
+  b.title = VIEW === '2d' ? 'Switch to the 3D board' : 'Switch to the flat 2D board';
+  b.onclick = () => { Sfx.click(); setView(VIEW === '2d' ? '3d' : '2d'); };
+  chip.appendChild(b);
+  slot.appendChild(chip);
+}
+
 function renderPlayerPanel(slot) {
+  renderViewChip(slot);
+
   // hosts keep the invite handy: latecomers and reconnects both need it
   if (net && net.mode === 'host') {
     const chip = settled(el('div', 'card roomchip'), 'roomchip');
@@ -4027,10 +4051,7 @@ function renderBar(slot) {
   bTrade.onclick = () => openTrade();
   const bSound = el('button', 'btn', Sfx.muted ? '🔇 Sound' : '🔊 Sound');
   bSound.onclick = () => { Sfx.setMuted(!Sfx.muted); Sfx.click(); renderHUD(); };
-  const bView = el('button', 'btn', VIEW === '2d' ? '🧊 3D board' : '🀫 Flat board');
-  bView.title = VIEW === '2d' ? 'Switch to the 3D board' : 'Switch to the flat 2D board';
-  bView.onclick = () => { Sfx.click(); setView(VIEW === '2d' ? '3d' : '2d'); };
-  tools.append(bTrade, bSound, bView);
+  tools.append(bTrade, bSound);   // the board switch lives up in the corner now
   row.appendChild(tools);
 
   card.appendChild(row);
