@@ -61,7 +61,16 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-2);
 .hud-slot.br{bottom:16px;right:16px;width:290px;max-height:calc(100vh - 40px);overflow-y:auto;padding-right:4px;justify-content:flex-end}
 .hud-slot.bl{bottom:16px;left:16px;width:310px}
 .hud-slot.bc{bottom:18px;left:50%;transform:translateX(-50%);align-items:center}
-.hud-slot.mid{top:46%;left:50%;transform:translate(-50%,-50%);align-items:center;width:min(400px,86vw)}
+/* Anchored to the whole board rather than to a point at 46% of it: a full
+   table bidding at once is taller than a laptop screen, and a panel pinned
+   by its centre hung its title off the top of the window with no way to
+   reach it. Full-bleed and centred, it can only ever run out of room
+   downwards — and then it scrolls inside itself. The slot stays
+   click-through; only the panel inside it takes the pointer. */
+.hud-slot.mid{inset:0;width:auto;transform:none;
+  align-items:center;justify-content:center;padding:12px 12px 88px}
+.hud-slot.mid>*{width:min(400px,86vw);max-height:100%;
+  overflow-y:auto;overscroll-behavior:contain}
 /* The middle of the board, where the table would be: whose turn it is, then
    what just happened, fading out as it gets older. */
 .hud-slot.cc{
@@ -354,6 +363,7 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-2);
 .teamcard .tmembers{display:flex;gap:4px;flex-wrap:wrap;margin-top:3px}
 .teamcard .tmember{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);font-weight:700}
 .teamcard .tmember i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.teamcard .tmember svg{width:14px;height:14px;display:block;flex:0 0 14px}
 .teamcard input{
   background:var(--panel-3);border:1px solid var(--line);border-radius:8px;color:var(--ink);
   font:700 13px/1.2 var(--ui);padding:5px 7px;width:100%;
@@ -404,21 +414,79 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-2);
 .foldhead .count{font-size:11px;color:var(--accent-2)}
 
 /* ---- live auction ---- */
-.auction{display:flex;flex-direction:column;gap:9px;align-items:stretch}
-.auchead{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
-.aucbid{font-family:var(--display);font-size:26px;font-weight:800;color:var(--accent-2);line-height:1}
-.aucwho{font-size:12px;color:var(--muted);font-weight:700}
-.aucclock{height:7px;border-radius:99px;background:rgba(255,255,255,.09);overflow:hidden}
+.auction{display:flex;gap:16px;align-items:stretch;text-align:left}
+.aucmain{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
+.auctitle{
+  font-family:var(--display);font-weight:800;font-size:13px;letter-spacing:.8px;
+  text-transform:uppercase;color:var(--muted);text-align:center;margin-bottom:2px;
+}
+.auclot{display:flex;align-items:center;justify-content:center;gap:10px;font-family:var(--display);
+  font-size:26px;font-weight:800;line-height:1.1;text-align:center}
+.auclot .t-flag{width:26px;height:26px;flex:0 0 26px}
+.aucnow{display:flex;align-items:baseline;gap:10px}
+.auclabel{font-size:11.5px;color:var(--muted);font-weight:800;letter-spacing:.3px}
+.aucbid{font-family:var(--display);font-size:30px;font-weight:800;color:#7ee08b;line-height:1}
+.aucholder{display:flex;align-items:center;gap:9px;min-height:34px}
+.aucholder .pav{width:32px;height:32px}
+.aucname{font-weight:800;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.auccash{margin-left:auto;font-family:var(--display);font-weight:800;font-size:19px}
+.aucsold{font-size:11.5px;color:var(--muted);font-weight:800;text-align:right}
+.aucsold.hot{color:#f0913e}
+.aucclock{height:8px;border-radius:99px;background:rgba(255,255,255,.09);overflow:hidden}
 .aucclock i{display:block;height:100%;width:100%;border-radius:99px;
   background:linear-gradient(90deg,var(--accent),var(--accent-2))}
 .aucclock.hot i{background:linear-gradient(90deg,#e0454e,#f0913e)}
-.aucrow{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
-.aucrow .btn{padding:9px 12px;font-size:13px}
-.aucseat{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:center;
-  padding:6px;border-radius:11px;background:var(--panel-2)}
-.aucseat .who{display:flex;align-items:center;gap:6px;font-weight:800;font-size:12.5px;min-width:96px}
-.aucseat .who i{width:11px;height:11px;border-radius:50%}
+
+.aucseat{display:flex;flex-direction:column;gap:7px;margin-top:4px}
 .aucseat.outbid{opacity:.45}
+.aucseat.tight{flex-direction:row;align-items:center;gap:6px;margin-top:0;
+  padding:5px 7px;border-radius:10px;background:var(--panel-2)}
+.aucseat.tight .aucsteps{display:flex;gap:5px;margin-left:auto}
+.aucseat.tight .bidbtn{padding:5px 8px}
+.aucseat.tight .bidbtn b{font-size:12.5px}
+.aucseat.tight .aucpass{padding:5px 9px;font-size:11.5px}
+.aucwho{display:flex;align-items:center;gap:6px;font-weight:800;font-size:12.5px;
+  min-width:88px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.aucwho i{width:10px;height:10px;border-radius:50%;flex:0 0 10px}
+.aucsteps{display:grid;grid-template-columns:repeat(auto-fit,minmax(72px,1fr));gap:7px}
+.bidbtn{
+  display:flex;flex-direction:column;align-items:center;gap:1px;padding:9px 6px;border-radius:12px;
+  background:color-mix(in srgb, var(--accent) 22%, var(--panel-2));
+  box-shadow:0 3px 0 rgba(0,0,0,.4);transition:transform .1s var(--ease), background .16s var(--ease);
+}
+.bidbtn b{font-family:var(--display);font-size:17px;font-weight:800;line-height:1}
+.bidbtn span{font-size:10.5px;font-weight:800;color:var(--muted)}
+.bidbtn:hover{background:color-mix(in srgb, var(--accent) 42%, var(--panel-2));transform:translateY(-2px)}
+.bidbtn:active{transform:translateY(2px)}
+.bidbtn[disabled]{opacity:.35;pointer-events:none}
+.aucpass{padding:7px 14px;font-size:12.5px;align-self:flex-start}
+
+.auchist{display:flex;flex-direction:column;gap:2px;margin-top:6px;max-height:132px;overflow:hidden}
+.aucline{display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;white-space:nowrap}
+.aucline i{width:9px;height:9px;border-radius:50%;flex:0 0 9px}
+.aucline b{font-weight:800}
+.aucline span{color:var(--muted)}
+
+.aucdeed{
+  width:236px;flex:0 0 236px;border-radius:13px;padding:13px;align-self:flex-start;
+  background:color-mix(in srgb, var(--accent) 14%, var(--panel-2));
+  border:1px solid rgba(255,255,255,.08);
+}
+/* the slot centres its children on content width, so the auction has to
+   claim the extra room explicitly or the raises wrap into a block */
+.hud-slot.mid.wide>*{width:min(680px,94vw)}
+@media (max-width:820px){
+  .auction{flex-direction:column}
+  .aucdeed{width:100%;flex:1 1 auto}
+  /* stacked, the running order is the first thing that can go: the raises
+     and the rent ladder are what a bid is actually made on */
+  .auchist{display:none}
+  /* squeezed onto one line the raises shrink to a 36px target; on a phone
+     they get the full width of the row instead */
+  .aucseat.tight{flex-wrap:wrap}
+  .aucseat.tight .aucsteps{flex:1 1 100%;margin-left:0}
+  .aucseat.tight .bidbtn{flex:1}
+}
 
 /* ---------------- side panel ---------------- */
 /* Only the panel itself stops animating: the money that flies off a row and
@@ -448,8 +516,14 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-2);
   display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:10px;
   background:var(--panel-2);margin-bottom:7px;position:relative;
 }
+.prow{box-shadow:inset 3px 0 0 var(--pc,transparent)}
 .prow.active{box-shadow:inset 3px 0 0 var(--accent-2);background:var(--panel-3)}
 .prow.dead{opacity:.4}
+.pwho{flex:1;min-width:0}
+.pteam{
+  font-size:10.5px;font-weight:800;line-height:1.25;margin-top:1px;
+  color:var(--pc,var(--muted));overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
 .pav{width:26px;height:26px;border-radius:50%;flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:2.5px}
 .pav .eye{width:7px;height:7px;background:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center}
 .pav .eye::after{content:'';width:3px;height:3px;background:#111;border-radius:50%}
@@ -499,15 +573,15 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-2);
 }
 #peek.on{transform:translateY(0)}
 #peek.on{opacity:1}
-#peek .ph{display:flex;align-items:center;gap:8px;justify-content:center;font-weight:800;font-size:15px;margin-bottom:9px}
-#peek .t-flag{width:19px;height:19px;flex:0 0 19px}
-#peek table{width:100%;border-collapse:collapse;font-size:12px}
-#peek th{color:var(--muted);font-weight:700;text-align:left;border-bottom:1px solid var(--line);padding-bottom:4px}
-#peek th:last-child{text-align:right}
-#peek td{padding:3px 0}
-#peek td:last-child{text-align:right;font-weight:800}
-#peek tr.hl td{background:rgba(255,255,255,.07)}
-#peek .pf{margin-top:9px;border-top:1px solid var(--line);padding-top:8px;font-size:11.5px;color:var(--muted);text-align:center}
+.deedcard .ph{display:flex;align-items:center;gap:8px;justify-content:center;font-weight:800;font-size:15px;margin-bottom:9px}
+.deedcard .t-flag{width:19px;height:19px;flex:0 0 19px}
+.deedcard table{width:100%;border-collapse:collapse;font-size:12px}
+.deedcard th{color:var(--muted);font-weight:700;text-align:left;border-bottom:1px solid var(--line);padding-bottom:4px}
+.deedcard th:last-child{text-align:right}
+.deedcard td{padding:3px 0}
+.deedcard td:last-child{text-align:right;font-weight:800}
+.deedcard tr.hl td{background:rgba(255,255,255,.07)}
+.deedcard .pf{margin-top:9px;border-top:1px solid var(--line);padding-top:8px;font-size:11.5px;color:var(--muted);text-align:center}
 
 /* card popup */
 .cardpop{
@@ -521,7 +595,16 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-2);
 
 /* ---------------- lobby ---------------- */
 #lobby{position:fixed;inset:0;z-index:50;display:flex;background:rgba(8,8,17,.9);backdrop-filter:blur(3px)}
-#lobby .lmain{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:20px}
+#lobby .lmain{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;align-items:center;gap:18px;padding:20px;overflow-y:auto;overscroll-behavior:contain}
+/* Centred when it fits, scrolled when it does not. `justify-content:center`
+   alone clips the top and bottom out of reach, which is why a room with
+   several teams could only be read by zooming the whole page out. */
+#lobby .lmain::before,#lobby .lmain::after{content:'';margin:auto;flex:0 0 0}
+.startrow{
+  position:sticky;bottom:-20px;z-index:3;width:100%;display:flex;justify-content:center;
+  padding:16px 0 20px;margin-bottom:-20px;
+  background:linear-gradient(to top,rgba(8,8,17,.97) 62%,rgba(8,8,17,0));
+}
 #lobby h1{font-size:34px;margin:0;letter-spacing:-1px}
 #lobby h1 span{color:var(--accent-2)}
 .swatches{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;max-width:300px}
@@ -576,6 +659,7 @@ input[type=text],input[type=number],textarea,select{
   #side{width:100%;flex:1 1 auto;height:auto}
   :root{--board:min(96vw,720px)}
   #lobby{flex-direction:column;overflow:auto}
+  #lobby .lmain{overflow:visible;min-height:auto}
   #lobby .lside{width:100%;flex:1 1 auto}
 }
 @media (prefers-reduced-motion:reduce){
@@ -838,6 +922,14 @@ input[type=text]:focus,input[type=number]:focus{border-color:var(--accent);outli
 }
 .shapebtn:hover{transform:translateY(-3px);background:var(--panel-3)}
 .shapebtn.sel{background:var(--panel-3);box-shadow:0 0 0 2.5px var(--accent-2)}
+.shapebtn.taken{opacity:.28}
+.teamskin{
+  max-width:320px;text-align:center;font-size:12.5px;line-height:1.4;color:var(--muted);font-weight:700;
+  border-radius:12px;padding:10px 14px;
+  background:color-mix(in srgb, var(--tcol,var(--accent-2)) 16%, var(--panel-2));
+  border:1.5px solid color-mix(in srgb, var(--tcol,var(--accent-2)) 55%, transparent);
+}
+.teamskin b{color:var(--tcol,var(--ink));font-size:14px}
 .shapebtn svg{width:100%;height:100%;display:block}
 .sw svg,.pav svg{width:100%;height:100%;display:block}
 .sw{background:transparent !important;padding:3px}
@@ -857,7 +949,7 @@ input[type=text]:focus,input[type=number]:focus{border-color:var(--accent);outli
     <div class="hud-slot mid" id="hudPrompt"></div>
   </div>
 </div>
-<div id="peek"></div>
+<div id="peek" class="deedcard"></div>
 <script>/* ============================================================
    MOGUL — board data
    Original implementation. A 48-tile world ring: 11 tiles per side
@@ -1099,6 +1191,7 @@ const Engine = (() => {
       order: [],
       turn: 0,
       dice: [0, 0],
+      diceSeq: 0,       // every throw bumps it, so all boards animate the same one
       doubles: 0,
       rolled: false,
       moving: false,
@@ -1167,6 +1260,17 @@ const Engine = (() => {
   const teamMates = (s, playerId) => s.players.filter(p => p.id !== playerId && sameSide(s, p.id, playerId));
   const findTeam = (s, id) => s.teams.find(t => t.id === id) || null;
 
+  /* One side, one colour — and in teams mode that colour is the team's.
+     Teammates are told apart by their shape, never by their hue: two players
+     wearing two different greens is what made the last board unreadable.
+     Everything on screen that used to reach for p.color asks for this. */
+  const colorOf = (s, playerId) => {
+    const p = P(s, playerId);
+    if (!p) return '#8b8bb0';
+    const t = findTeam(s, teamOf(s, playerId));
+    return t ? t.color : p.color;
+  };
+
   /* A set counts when the side holds every tile, even split across allies. */
   function ownsFullSet(s, playerId, g) {
     const tiles = groupTiles(g);
@@ -1214,11 +1318,13 @@ const Engine = (() => {
 
   function log(s, html, meta) {
     s.log.push({ t: Date.now(), id: ++s.logSeq, html, meta: meta || null });
-    if (s.log.length > 200) s.log.shift();
+    // the whole state goes down the wire on every action: an endless backlog
+    // of lines nobody scrolls back to is pure weight for eight browsers
+    if (s.log.length > 90) s.log.shift();
   }
   const tag = (s, id) => {
     const p = P(s, id);
-    return `<span class="ltag"><i style="background:${p.color}"></i>${esc(p.name)}</span>`;
+    return `<span class="ltag"><i style="background:${colorOf(s, id)}"></i>${esc(p.name)}</span>`;
   };
   const tileTag = (i) => `<span class="ltile">${esc(BOARD[i].name)}</span>`;
   function esc(x) { return String(x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
@@ -1339,6 +1445,7 @@ const Engine = (() => {
   function rollDice(s, forced) {
     const d = forced || [1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)];
     s.dice = d;
+    s.diceSeq = (s.diceSeq || 0) + 1;
     return d;
   }
 
@@ -1548,7 +1655,7 @@ const Engine = (() => {
   function startAuction(s, tile) {
     s.pending = {
       kind: 'auction', tile, bid: 0, leader: null, seq: 0,
-      endsAt: Date.now() + AUCTION_MS, out: [],
+      endsAt: Date.now() + AUCTION_MS, out: [], bids: [],
     };
     log(s, `${tileTag(tile)} goes to auction — 3 seconds, anyone can raise`);
   }
@@ -1663,6 +1770,8 @@ const Engine = (() => {
         if (me.cash < amount) break;
         au.bid = amount; au.leader = playerId; au.seq++;
         au.endsAt = Date.now() + AUCTION_MS;
+        // the running order, newest first — the room wants to see the fight
+        au.bids = [{ by: playerId, amount }].concat(au.bids || []).slice(0, 14);
         log(s, `${tag(s, playerId)} raised to <b>$${amount}</b> for ${tileTag(au.tile)}`);
         break;
       }
@@ -1857,6 +1966,9 @@ const Engine = (() => {
         const team = findTeam(s, a.team);
         if (!team) break;
         me.team = team.id;
+        // teammates share a colour, so they must not also share a silhouette
+        const worn = s.players.filter(p => p.id !== playerId && p.team === team.id).map(p => p.shape);
+        if (worn.includes(me.shape)) me.shape = SHAPES.find(sh => !worn.includes(sh)) || me.shape;
         log(s, `${tag(s, playerId)} joined ${team.emoji} <b>${esc(team.name)}</b>`);
         break;
       }
@@ -1932,7 +2044,7 @@ const Engine = (() => {
 
   return {
     AUCTION_MS, BID_STEPS,
-    teamOf, sideOf, sameSide, teamMates, findTeam,
+    teamOf, sideOf, sameSide, teamMates, findTeam, colorOf,
     createState, addPlayer, applyAction, startGame,
     P, current, alive, ownerOf, ownsFullSet, countOwned, netWorth, rentFor,
     canBuild, canSell, liquidValue, autoLiquidate, groupTiles, clone, rid, esc, log,
@@ -2270,8 +2382,7 @@ const Board3D = (() => {
       // owner bar, inner edge — never touches the country band
       if (o && sd !== 'corner') {
         const ob = px(Layout.strip(sd, r, ZONE.owner, 'inner'));
-        const owner = Engine.P(S, o.by);
-        g.fillStyle = mortgaged ? '#8e2f2a' : owner.color;
+        g.fillStyle = mortgaged ? '#8e2f2a' : Engine.colorOf(S, o.by);
         g.fillRect(ob.x + 2, ob.y + 2, ob.w - 4, ob.h - 4);
         g.strokeStyle = PAL.line; g.lineWidth = 2;
         g.strokeRect(ob.x + 2, ob.y + 2, ob.w - 4, ob.h - 4);
@@ -2576,6 +2687,7 @@ const Board3D = (() => {
       });
       const m = new T.Mesh(new T.BoxGeometry(1.15, 1.15, 1.15), mats);
       m.castShadow = true;
+      m.visible = false;                 // nothing on the felt before the first throw
       m.position.set(k === 0 ? -1.2 : 1.2, TOP + 0.6, 0);
       scene.add(m);
       return m;
@@ -2708,12 +2820,14 @@ const Board3D = (() => {
       if (p.bankrupt) return;
       alive[p.id] = true;
       const want = p.shape || 'blob';
-      if (pawns[p.id] && pawns[p.id].userData.shape !== want) {
+      const tint = Engine.colorOf(S, p.id);
+      if (pawns[p.id] && pawns[p.id].userData.look !== want + tint) {
         scene.remove(pawns[p.id]);
         delete pawns[p.id];
       }
       if (!pawns[p.id]) {
-        pawns[p.id] = pawnMesh(THREE, p.color, want);
+        pawns[p.id] = pawnMesh(THREE, tint, want);
+        pawns[p.id].userData.look = want + tint;
         scene.add(pawns[p.id]);
         pawns[p.id].userData.tile = p.pos;
       }
@@ -2819,12 +2933,31 @@ const Board3D = (() => {
     hop();
   };
 
+  /* Where the dice come to rest for a given pair — no throw, no animation.
+     A browser that did not press the button still has to show the numbers
+     the game actually rolled. */
+  let diceBusy = 0;
+  function setDice(d1, d2) {
+    if (!dice.length) return;
+    const rolled = d1 > 0 && d2 > 0;
+    dice.forEach((m, k) => {
+      m.visible = rolled;
+      if (!rolled) return;
+      const t = DIE_UP[k === 0 ? d1 : d2] || [0, 0, 0];
+      m.rotation.set(t[0], t[1], t[2]);
+      m.position.set(k === 0 ? -1.5 : 1.5, TOP + 0.6, 0);
+    });
+  }
+
   api.roll = function (d1, d2) {
     if (!dice.length) return;
+    dice.forEach(m => { m.visible = true; });
+    diceBusy += 2;
     [d1, d2].forEach((v, k) => {
       const m = dice[k];
-      const spinX = Math.PI * (4 + Math.floor(Math.random() * 3));
-      const spinZ = Math.PI * (3 + Math.floor(Math.random() * 3));
+      // whole turns, so the tumble lands exactly on the face it snaps to
+      const spinX = 2 * Math.PI * (2 + Math.floor(Math.random() * 2));
+      const spinZ = 2 * Math.PI * (2 + Math.floor(Math.random() * 2));
       const target = DIE_UP[v] || [0, 0, 0];
       const from = { x: m.rotation.x, y: m.rotation.y, z: m.rotation.z };
       const baseX = k === 0 ? -1.5 : 1.5;
@@ -2838,6 +2971,7 @@ const Board3D = (() => {
       }, () => {
         m.rotation.set(target[0], target[1], target[2]);
         m.position.set(baseX, TOP + 0.6, 0);
+        diceBusy = Math.max(0, diceBusy - 1);
       });
     });
   };
@@ -2856,7 +2990,7 @@ const Board3D = (() => {
       if (group && t.group === group) hit = true;
       if (!on) { m.material.opacity = 0; continue; }
       if (hit) {
-        m.material.color.set(playerId ? Engine.P(S, playerId).color : (GROUPS[group] ? GROUPS[group].color : '#ffffff'));
+        m.material.color.set(playerId ? Engine.colorOf(S, playerId) : (GROUPS[group] ? GROUPS[group].color : '#ffffff'));
         m.material.opacity = 0.34;
         continue;
       }
@@ -3018,6 +3152,8 @@ const Board3D = (() => {
     // the top texture is 4 megapixels, so only repaint it when a deed changed
     const sig = JSON.stringify(S.owned);
     if (sig !== ownedSig) { ownedSig = sig; drawTexture(); }
+    // never leave the cubes on a number the game has moved past
+    if (!diceBusy) setDice(S.dice[0], S.dice[1]);
     syncPawns();
     syncBuildings();
     api.focus(focusP, focusG);
@@ -3028,7 +3164,8 @@ const Board3D = (() => {
     window.removeEventListener('resize', resize);
     if (renderer) { renderer.dispose(); if (renderer.domElement.parentNode) renderer.domElement.remove(); }
     api.ready = false;
-    pawns = {}; overlays = []; dice = []; scene = null;
+    tweens.length = 0;
+    pawns = {}; overlays = []; dice = []; scene = null; diceBusy = 0;
   };
 
   return api;
@@ -3199,13 +3336,21 @@ const Board2D = (() => {
 
   function tokenNode(p) {
     const node = el('div', 'token');
-    node.style.setProperty('--c', p.color);
     node.appendChild(el('div', 'tshadow'));
-    const body = el('div', 'tbody shaped');
-    body.innerHTML = (SHAPE_ICONS[p.shape || 'blob'] || SHAPE_ICONS.blob)(p.color)
-      + '<i class="eye"></i><i class="eye"></i>';
-    node.appendChild(body);
+    node.appendChild(el('div', 'tbody shaped'));
+    paintToken(node, p);
     return node;
+  }
+
+  /* Joining a team repaints a piece mid-lobby, so the drawn silhouette is
+     redone whenever the pair it was drawn from moves. */
+  function paintToken(node, p) {
+    const c = Engine.colorOf(S, p.id), shape = p.shape || 'blob';
+    node.style.setProperty('--c', c);
+    if (node.dataset.look === shape + c) return;
+    node.dataset.look = shape + c;
+    node.querySelector('.tbody').innerHTML =
+      (SHAPE_ICONS[shape] || SHAPE_ICONS.blob)(c) + '<i class="eye"></i><i class="eye"></i>';
   }
 
   function syncTokens() {
@@ -3216,7 +3361,7 @@ const Board2D = (() => {
       live.add(p.id);
       let node = tokenEls[p.id];
       if (!node) { node = tokenNode(p); tokenEls[p.id] = node; tokensEl.appendChild(node); }
-      node.style.setProperty('--c', p.color);
+      paintToken(node, p);
       node.classList.toggle('me', !LOCAL_ALL && p.id === MY_ID);
       node.classList.toggle('jailed', !!p.inPrison);
       node.classList.toggle('active', !!cur && cur.id === p.id);
@@ -3241,8 +3386,9 @@ const Board2D = (() => {
       const owner = o ? Engine.P(S, o.by) : null;
       node.classList.toggle('owned', !!owner);
       if (owner) {
-        strip.style.background = owner.color;
-        node.style.setProperty('--ownc', owner.color);
+        const oc = Engine.colorOf(S, owner.id);
+        strip.style.background = oc;
+        node.style.setProperty('--ownc', oc);
       } else node.style.removeProperty('--ownc');
       node.classList.toggle('mortgaged', !!(o && o.mortgaged));
       let label = node.querySelector('.mortlabel');
@@ -3263,7 +3409,7 @@ const Board2D = (() => {
       const hit = (focusP && o && o.by === focusP) || (focusG && t.group === focusG);
       node.classList.toggle('hl', !!hit || (!focusP && !focusG && i === hoverTile));
       node.classList.toggle('dim', !!focusP && !hit);
-      if (hit) node.style.setProperty('--own', focusP ? Engine.P(S, focusP).color : GROUPS[focusG].color);
+      if (hit) node.style.setProperty('--own', focusP ? Engine.colorOf(S, focusP) : GROUPS[focusG].color);
     }
   }
 
@@ -3461,8 +3607,19 @@ function reduceMotion() {
   return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-function renderDice(animate) {
-  if (animate && Board.ready) { Board.roll(S.dice[0], S.dice[1]); Sfx.dice(); }
+/* Everyone watches the same throw. This used to fire only in the browser
+   that pressed the button, so every other screen kept whatever the 3D dice
+   happened to be showing while the flat board — which repaints from the
+   state — showed the real numbers. Two boards, two answers. */
+let diceSeen = -1;
+function renderDice() {
+  const seq = S.diceSeq || 0;
+  if (!Board.ready) return;                 // the mounting board paints them itself
+  if (seq === diceSeen) return;
+  diceSeen = seq;
+  if (!S.dice || !S.dice[0]) return;
+  Board.roll(S.dice[0], S.dice[1]);
+  Sfx.dice();
 }
 
 function syncPieces() {
@@ -3491,10 +3648,11 @@ function highlightGroup(g) { focusGroup = g; applyHighlight(); }
 function applyHighlight() { if (Board.ready) Board.focus(focusPlayer, focusGroup); }
 
 /* ---------- property peek card ---------- */
-function showPeek(i, node) {
+/* The deed as a card: the rent ladder, the price, the owner. The card that
+   follows the cursor and the one standing beside an auction are the same
+   card, so they are built in one place. */
+function deedCardHTML(i) {
   const t = BOARD[i];
-  if (!t.price) return hidePeek();
-  const peek = $('#peek');
   const o = S.owned[i];
   let rows = '';
 
@@ -3514,14 +3672,20 @@ function showPeek(i, node) {
   }
 
   const houseCost = t.type === 'property' ? GROUPS[t.group].house : null;
-  peek.innerHTML = `
+  return `
     <div class="ph">${t.group && FLAGS[t.group] ? `<span class="t-flag">${FLAGS[t.group]}</span>` : ''}${esc(t.name)}</div>
     <table><tr><th>when</th><th>get</th></tr>${rows}</table>
     <div class="pf">
-      ${o ? `Owner &nbsp;<span class="ltag"><i style="background:${Engine.P(S, o.by).color}"></i>${esc(Engine.P(S, o.by).name)}</span><br>` : ''}
+      ${o ? `Owner &nbsp;<span class="ltag"><i style="background:${Engine.colorOf(S, o.by)}"></i>${esc(Engine.P(S, o.by).name)}</span><br>` : ''}
       Price $${t.price}${houseCost ? ` &nbsp;·&nbsp; 🏠 $${houseCost} &nbsp;·&nbsp; 🏨 $${houseCost}` : ''}
       ${o && o.mortgaged ? '<br><b style="color:var(--bad)">Mortgaged</b>' : ''}
     </div>`;
+}
+
+function showPeek(i, node) {
+  if (!BOARD[i].price) return hidePeek();
+  const peek = $('#peek');
+  peek.innerHTML = deedCardHTML(i);
   const r = node.getBoundingClientRect();
   let x = r.left + r.width / 2 - 115, y = r.top + r.height + 8;
   if (y + 260 > window.innerHeight) y = r.top - 268;
@@ -3576,7 +3740,7 @@ function renderHUD() {
 }
 
 function avatarNode(p) {
-  const a = el('div', 'pav', SHAPE_ICONS[p.shape || 'blob'](p.color));
+  const a = el('div', 'pav', SHAPE_ICONS[p.shape || 'blob'](Engine.colorOf(S, p.id)));
   return a;
 }
 
@@ -3608,11 +3772,18 @@ function renderPlayerPanel(slot) {
     const p = Engine.P(S, id);
     const cur = Engine.current(S);
     const row = el('div', 'prow' + (cur && cur.id === id ? ' active' : '') + (p.bankrupt ? ' dead' : ''));
+    row.style.setProperty('--pc', Engine.colorOf(S, id));
     row.appendChild(avatarNode(p));
-    row.appendChild(el('div', 'pname',
+
+    /* The name comes first and the team sits under it. Side by side, a long
+       team name squeezed the name it belonged to down to nothing — which is
+       how a table of eight spent a whole game unable to find their own row. */
+    const who = el('div', 'pwho');
+    who.appendChild(el('div', 'pname',
       `${esc(p.name)}${p.id === MY_ID ? ' <span class="pmeta">you</span>' : ''}${p.inPrison ? ' ⛓' : ''}${p.jailCards ? ' 🎟'.repeat(p.jailCards) : ''}`));
-    const badge = teamBadge(id);
-    if (badge) row.appendChild(badge);
+    const team = Engine.findTeam(S, Engine.teamOf(S, id));
+    if (team) who.appendChild(el('div', 'pteam', `${team.emoji} ${esc(team.name)}`));
+    row.appendChild(who);
     row.appendChild(el('div', 'pcash', `$${p.cash}`));
     const owns = Object.keys(S.owned).filter(k => S.owned[k].by === id).length;
     if (owns) row.appendChild(el('div', 'powns', `${owns}`));
@@ -3668,7 +3839,7 @@ function renderChatPanel(slot) {
   shown.forEach(m => {
     const p = Engine.P(S, m.by);
     const line = settled(el('div', 'chatline' + (m.team ? ' team' : ''),
-      `<b style="color:${p ? p.color : '#fff'}">${esc(p ? p.name : '?')}</b> ${esc(m.text)}`),
+      `<b style="color:${p ? Engine.colorOf(S, p.id) : '#fff'}">${esc(p ? p.name : '?')}</b> ${esc(m.text)}`),
       'chat:' + m.t + ':' + m.by);
     log.appendChild(line);
   });
@@ -3711,7 +3882,7 @@ function renderCenterLog(slot) {
       ? `🏆 ${wt.emoji} <b>${esc(wt.name)}</b> wins together!`
       : `🏆 <b>${w ? esc(w.name) : '—'}</b> wins!`;
   } else if (cur) {
-    line.innerHTML = `<span class="ltag"><i style="background:${cur.color}"></i>${esc(cur.name)}</span>
+    line.innerHTML = `<span class="ltag"><i style="background:${Engine.colorOf(S, cur.id)}"></i>${esc(cur.name)}</span>
       ${cur.id === actorId() ? '— your move' : 'is playing…'}`;
   }
   if (S.phase !== 'lobby') slot.appendChild(line);
@@ -3740,9 +3911,9 @@ function showTradeTip(anchor, t) {
   if (!from || !to) return;
   tip.innerHTML = `
     <div class="tthead">
-      <span class="ltag"><i style="background:${from.color}"></i>${esc(from.name)}</span>
+      <span class="ltag"><i style="background:${Engine.colorOf(S, from.id)}"></i>${esc(from.name)}</span>
       <span class="tarrow">→</span>
-      <span class="ltag"><i style="background:${to.color}"></i>${esc(to.name)}</span>
+      <span class="ltag"><i style="background:${Engine.colorOf(S, to.id)}"></i>${esc(to.name)}</span>
     </div>
     <div class="ttline"><span class="tclabel give">${esc(from.name)} gave</span> ${bagHTML(t.give)}</div>
     <div class="ttline"><span class="tclabel get">${esc(to.name)} gave</span> ${bagHTML(t.want)}</div>
@@ -3818,6 +3989,8 @@ function renderBar(slot) {
 /* Anything that needs a decision appears in the middle of the screen. */
 function renderPrompt(slot) {
   const pd = S.pending;
+  // the auction needs room for the deed beside it; nothing else does
+  slot.classList.toggle('wide', !!pd && pd.kind === 'auction' && S.phase === 'playing');
   if (!pd || S.phase !== 'playing') return;
   const acting = actorId();
 
@@ -3982,20 +4155,43 @@ function renderAuction(box, au) {
   const t = BOARD[au.tile];
   const wrap = el('div', 'auction');
 
-  const head = el('div', 'auchead');
-  head.append(
-    el('div', '', `<b>Auction</b> · ${esc(t.name)}`),
-    el('div', 'aucbid', `$${au.bid}`));
-  wrap.appendChild(head);
-  wrap.appendChild(el('div', 'aucwho', au.leader
-    ? `Leading: ${esc(Engine.P(S, au.leader).name)} — going once…`
-    : `Opening bid $${Engine.BID_STEPS[0]} — nobody has raised yet`));
+  /* Two columns: the fight on the left, the thing being fought over on the
+     right. Bidding blind against a name and a number was the old version's
+     whole problem — nobody could remember what the rent ladder looked like. */
+  const bidding = el('div', 'aucmain');
+  const leader = au.leader ? Engine.P(S, au.leader) : null;
+
+  bidding.appendChild(el('div', 'auctitle', 'Auction'));
+
+  const lot = el('div', 'auclot');
+  lot.innerHTML = (t.group && FLAGS[t.group] ? `<span class="t-flag">${FLAGS[t.group]}</span>` : '')
+    + `<span>${esc(t.name)}</span>`;
+  bidding.appendChild(lot);
+
+  const bidRow = el('div', 'aucnow');
+  bidRow.appendChild(el('div', 'auclabel', 'Current bid'));
+  bidRow.appendChild(el('div', 'aucbid', `$${au.bid}`));
+  bidding.appendChild(bidRow);
+
+  const holder = el('div', 'aucholder');
+  if (leader) {
+    holder.appendChild(avatarNode(leader));
+    holder.appendChild(el('div', 'aucname', esc(leader.name)));
+    holder.appendChild(el('div', 'auccash', `$${leader.cash}`));
+  } else {
+    holder.appendChild(el('div', 'pmeta',
+      `Opening at $${Engine.BID_STEPS[0]} — nobody has raised yet`));
+  }
+  bidding.appendChild(holder);
 
   const left = auctionLeft(au);
+  bidding.appendChild(el('div', 'aucsold' + (left < 1200 ? ' hot' : ''),
+    `Sold in ${Math.ceil(left / 1000)}…`));
+
   const clock = el('div', 'aucclock' + (left < 1200 ? ' hot' : ''));
   const fill = el('i');
   clock.appendChild(fill);
-  wrap.appendChild(clock);
+  bidding.appendChild(clock);
   // width now, then let the browser run it down: survives HUD rebuilds
   fill.style.transition = 'none';
   fill.style.width = (left / Engine.AUCTION_MS * 100) + '%';
@@ -4004,28 +4200,60 @@ function renderAuction(box, au) {
     fill.style.width = '0%';
   });
 
-  // online you bid for yourself; around one screen every seat gets its row
+  /* Online you bid for yourself and the buttons can be the size of the
+     decision. Around one screen every seat has to fit at once, so the same
+     four raises collapse into one compact row each. */
   const seats = (LOCAL_ALL ? Engine.alive(S) : Engine.alive(S).filter(p => p.id === MY_ID));
+  const roomy = seats.length === 1;
   seats.forEach(p => {
     const outOf = au.out.includes(p.id);
-    const seat = el('div', 'aucseat' + (outOf ? ' outbid' : ''));
-    seat.appendChild(el('div', 'who', `<i style="background:${p.color}"></i>${esc(p.name)}`));
+    const seat = el('div', 'aucseat' + (outOf ? ' outbid' : '') + (roomy ? '' : ' tight'));
+    if (roomy) seat.appendChild(el('div', 'auclabel', "I'm bidding…"));
+    else {
+      const who = el('div', 'aucwho');
+      who.innerHTML = `<i style="background:${Engine.colorOf(S, p.id)}"></i>${esc(p.name)}`;
+      seat.appendChild(who);
+    }
     if (outOf) {
       seat.appendChild(el('div', 'pmeta', 'passed'));
-    } else {
-      Engine.BID_STEPS.forEach(inc => {
-        const b = el('button', 'btn' + (inc === 10 ? ' primary' : ''), `+$${inc}`);
-        b.disabled = p.cash < au.bid + inc;
-        b.onclick = () => { Sfx.click(); act({ type: 'bid', inc }, p.id); };
-        seat.appendChild(b);
-      });
-      const pass = el('button', 'btn bad', 'Pass');
-      pass.onclick = () => act({ type: 'passBid' }, p.id);
-      seat.appendChild(pass);
+      bidding.appendChild(seat);
+      return;
     }
-    wrap.appendChild(seat);
+    const steps = el('div', 'aucsteps');
+    Engine.BID_STEPS.forEach(inc => {
+      const b = el('button', 'bidbtn', roomy
+        ? `<b>$${au.bid + inc}</b><span>+$${inc}</span>`
+        : `<b>+$${inc}</b>`);
+      b.disabled = p.cash < au.bid + inc;
+      b.onclick = () => { Sfx.click(); act({ type: 'bid', inc }, p.id); };
+      steps.appendChild(b);
+    });
+    seat.appendChild(steps);
+    const pass = el('button', 'btn bad aucpass', 'Pass');
+    pass.onclick = () => act({ type: 'passBid' }, p.id);
+    seat.appendChild(pass);
+    bidding.appendChild(seat);
   });
-  if (!seats.length) wrap.appendChild(el('div', 'pmeta', 'Watching the bidding…'));
+  if (!seats.length) bidding.appendChild(el('div', 'pmeta', 'Watching the bidding…'));
+
+  /* Newest raise on top, older ones fading out underneath — the shape of
+     the fight at a glance, without reading a word of it. */
+  const hist = el('div', 'auchist');
+  (au.bids || []).forEach((b, k) => {
+    const who = Engine.P(S, b.by);
+    const line = el('div', 'aucline',
+      `<i style="background:${Engine.colorOf(S, b.by)}"></i><b>${esc(who ? who.name : '?')}</b>` +
+      `<span>bids $${b.amount}</span>`);
+    line.style.opacity = Math.max(.12, 1 - k * .13);
+    hist.appendChild(line);
+  });
+  if ((au.bids || []).length && seats.length <= 2) bidding.appendChild(hist);
+
+  wrap.appendChild(bidding);
+
+  const deed = el('div', 'aucdeed deedcard');
+  deed.innerHTML = deedCardHTML(au.tile);
+  wrap.appendChild(deed);
 
   box.appendChild(wrap);
 }
@@ -4068,8 +4296,7 @@ function act(action, who) {
 }
 
 function doRoll() {
-  act({ type: 'roll' });
-  renderDice(true);
+  act({ type: 'roll' });   // render() animates the throw, here and everywhere else
 }
 
 function afterAction() {
@@ -4260,8 +4487,7 @@ function openTrade(preselect, seed, asWho) {
     body.appendChild(el('div', 'sechead', 'Who do you want to trade with?'));
     others.forEach(p => {
       const b = el('button', 'pickrow');
-      const av = el('div', 'pav', '<div class="eye"></div><div class="eye"></div>');
-      av.style.background = p.color;
+      const av = avatarNode(p);
       const props = Object.keys(S.owned).filter(i => S.owned[i].by === p.id).length;
       b.append(av, el('span', 'pname', esc(p.name)),
         el('span', 'pmeta', `$${p.cash} · ${props} propert${props === 1 ? 'y' : 'ies'}`));
@@ -4415,9 +4641,9 @@ function tradeCard(t) {
   const acting = actorId();
 
   wrap.appendChild(el('div', 'tchead', `
-    <span class="ltag"><i style="background:${from.color}"></i>${esc(from.name)}</span>
+    <span class="ltag"><i style="background:${Engine.colorOf(S, from.id)}"></i>${esc(from.name)}</span>
     <span class="tarrow">→</span>
-    <span class="ltag"><i style="background:${to.color}"></i>${esc(to.name)}</span>`));
+    <span class="ltag"><i style="background:${Engine.colorOf(S, to.id)}"></i>${esc(to.name)}</span>`));
 
   wrap.appendChild(el('div', 'tcbody', `
     <div class="tcline"><span class="tclabel give">${esc(from.name)} gives</span> ${bagHTML(t.give)}</div>
@@ -4503,7 +4729,40 @@ function toast(msg) {
    LOBBY
    ============================================================ */
 
+/* A debounce that outlives the rebuild. Hanging the timer off the input
+   element was worthless: the echo replaces that element before the timer
+   fires, so every keystroke ended up with a timer of its own and the name
+   went out one letter at a time — eight browsers, one message per letter.
+   Keyed by the field instead, a burst of typing sends once, at the end. */
+const lobbyTimers = {};
+function debounced(key, ms, fn) {
+  clearTimeout(lobbyTimers[key]);
+  lobbyTimers[key] = setTimeout(fn, ms);
+}
+const liveField = (key) => document.querySelector('#lobby [data-keep="' + key + '"]');
+
+/* Every state the host broadcasts rebuilds this whole screen from scratch,
+   and with eight browsers in the room that is several times a second. The
+   rebuilt input is a different element, so whoever was typing lost the caret
+   and half the word with it — the "it lags on every letter" of a room all
+   naming their teams at once. The draft and the caret are carried over. */
 function renderLobby() {
+  const before = document.activeElement;
+  const key = before && before.dataset ? before.dataset.keep : null;
+  const draft = key ? before.value : null;
+  const caret = key && before.setSelectionRange ? [before.selectionStart, before.selectionEnd] : null;
+
+  drawLobby();
+
+  if (!key) return;
+  const after = document.querySelector('#lobby [data-keep="' + key + '"]');
+  if (!after) return;
+  if (draft != null) after.value = draft;   // our own keystrokes beat the echo
+  after.focus();
+  try { if (caret) after.setSelectionRange(caret[0], caret[1]); } catch (e) {}
+}
+
+function drawLobby() {
   let lob = $('#lobby');
   if (!lob) { lob = el('div'); lob.id = 'lobby'; document.body.appendChild(lob); }
   else lob.classList.add('settled');   // already on screen: no second entrance
@@ -4522,6 +4781,7 @@ function renderLobby() {
     const jn = el('input'); jn.type = 'text'; jn.maxLength = 14;
     jn.value = localStorage.getItem('mogul.name') || '';
     jn.placeholder = 'Your name';
+    jn.dataset.keep = 'join';
     const go = el('button', 'btn primary wide', 'Join ➜');
     go.style.marginTop = '10px';
     go.onclick = () => {
@@ -4549,32 +4809,48 @@ function renderLobby() {
     lob.appendChild(main);
     return;
   }
-  main.appendChild(el('div', 'pmeta', 'Select your player appearance'));
+  /* Wearing your team's colour is the whole point of a team, so once you are
+     on one the colour picker goes away and the shape becomes the thing that
+     tells you apart from your own side. */
+  const myColor = me ? Engine.colorOf(S, me.id) : PLAYER_COLORS[3];
+  const onTeam = !!(me && Engine.teamOf(S, me.id));
 
-  const sws = el('div', 'swatches');
-  PLAYER_COLORS.forEach(c => {
-    const taken = takenColors.includes(c) && (!me || me.color !== c);
-    const shape = me ? (me.shape || 'blob') : 'blob';
-    const b = el('button', 'sw' + (me && me.color === c ? ' sel' : '') + (taken ? ' taken' : ''),
-      SHAPE_ICONS[shape](c));
-    b.style.color = c;
-    b.onclick = () => {
-      if (!me) return;
-      if (net && net.mode === 'guest') { net.send({ type: 'rename', color: c }); return; }
-      me.color = c; renderLobby();
-      if (net && net.mode === 'host') net.broadcast();
-    };
-    sws.appendChild(b);
-  });
-  main.appendChild(sws);
+  if (onTeam) {
+    const t = Engine.findTeam(S, Engine.teamOf(S, me.id));
+    const note = el('div', 'teamskin');
+    note.style.setProperty('--tcol', t.color);
+    note.innerHTML = `<b>${t.emoji} ${esc(t.name)}</b> plays in this colour — pick a shape so your
+      teammates can tell your piece from theirs.`;
+    main.appendChild(note);
+  } else {
+    main.appendChild(el('div', 'pmeta', 'Select your player appearance'));
+    const sws = el('div', 'swatches');
+    PLAYER_COLORS.forEach(c => {
+      const taken = takenColors.includes(c) && (!me || me.color !== c);
+      const shape = me ? (me.shape || 'blob') : 'blob';
+      const b = el('button', 'sw' + (me && me.color === c ? ' sel' : '') + (taken ? ' taken' : ''),
+        SHAPE_ICONS[shape](c));
+      b.style.color = c;
+      b.onclick = () => {
+        if (!me) return;
+        if (net && net.mode === 'guest') { net.send({ type: 'rename', color: c }); return; }
+        me.color = c; renderLobby();
+        if (net && net.mode === 'host') net.broadcast();
+      };
+      sws.appendChild(b);
+    });
+    main.appendChild(sws);
+  }
 
   main.appendChild(el('div', 'pmeta', 'Pick a shape'));
   const shapes = el('div', 'shapes');
+  const mates = me ? S.players.filter(p => p.id !== me.id && Engine.sameSide(S, p.id, me.id)) : [];
   SHAPES.forEach(sh => {
     const cur = me ? (me.shape || 'blob') : 'blob';
-    const b = el('button', 'shapebtn' + (cur === sh ? ' sel' : ''),
-      SHAPE_ICONS[sh](me ? me.color : PLAYER_COLORS[3]));
-    b.title = sh;
+    const clash = onTeam && cur !== sh && mates.some(p => (p.shape || 'blob') === sh);
+    const b = el('button', 'shapebtn' + (cur === sh ? ' sel' : '') + (clash ? ' taken' : ''),
+      SHAPE_ICONS[sh](myColor));
+    b.title = clash ? 'A teammate already plays this one' : sh;
     b.onclick = () => {
       if (!me) return;
       if (net && net.mode === 'guest') { net.send({ type: 'rename', shape: sh }); return; }
@@ -4590,15 +4866,20 @@ function renderLobby() {
   const inp = el('input'); inp.type = 'text'; inp.maxLength = 14;
   inp.value = me ? me.name : '';
   inp.placeholder = 'Your name';
+  inp.dataset.keep = 'myname';
   inp.oninput = () => {
     if (!me) return;
     me.name = inp.value.slice(0, 14) || 'Player';
     localStorage.setItem('mogul.name', me.name);
-    clearTimeout(inp._t);
-    inp._t = setTimeout(() => {
-      if (net && net.mode === 'guest') net.send({ type: 'rename', name: me.name });
-      else if (net && net.mode === 'host') net.broadcast();
-    }, 400);
+    debounced('myname', 400, () => {
+      const live = liveField('myname');
+      const name = ((live ? live.value : me.name) || 'Player').slice(0, 14);
+      const mine = MY_ID ? Engine.P(S, MY_ID) : null;
+      if (mine) mine.name = name;
+      if (net && net.mode === 'guest') return net.send({ type: 'rename', name });
+      renderLobby();                       // the seat list is still showing the old one
+      if (net && net.mode === 'host') net.broadcast();
+    });
   };
   nameBox.appendChild(inp);
   main.appendChild(nameBox);
@@ -4607,7 +4888,8 @@ function renderLobby() {
   seats.appendChild(el('h3', '', `Players ${S.players.length}/${S.settings.maxPlayers}`));
   S.players.forEach((p, k) => {
     const row = el('div', 'prow');
-    const av = el('div', 'pav', '<div class="eye"></div><div class="eye"></div>'); av.style.background = p.color;
+    row.style.setProperty('--pc', Engine.colorOf(S, p.id));
+    const av = avatarNode(p);
     row.append(av, el('div', 'pname', `${esc(p.name)}${k === 0 ? ' 👑' : ''}`));
     const badge = teamBadge(p.id);
     if (badge) row.appendChild(badge);
@@ -4641,7 +4923,11 @@ function renderLobby() {
     lob.remove();
     render();
   };
-  main.appendChild(start);
+  /* Pinned to the bottom of the scroller: with several teams on screen the
+     host used to have to zoom the page out just to reach this button. */
+  const startRow = el('div', 'startrow');
+  startRow.appendChild(start);
+  main.appendChild(startRow);
   lob.appendChild(main);
 
   lob.appendChild(settingsColumn(!!net && !isHost));
@@ -4672,17 +4958,19 @@ function teamsPanel() {
     if (mine) {
       const inp = el('input');
       inp.type = 'text'; inp.maxLength = 16; inp.value = t.name;
-      inp.oninput = () => {
-        clearTimeout(inp._t);
-        inp._t = setTimeout(() => send({ type: 'renameTeam', team: t.id, name: inp.value }), 400);
-      };
+      inp.dataset.keep = 'team:' + t.id;
+      const key = 'team:' + t.id;
+      inp.oninput = () => debounced(key, 400, () => {
+        const live = liveField(key);
+        send({ type: 'renameTeam', team: t.id, name: live ? live.value : inp.value });
+      });
       mid.appendChild(inp);
     } else {
       mid.appendChild(el('div', 'tname', esc(t.name)));
     }
     const members = el('div', 'tmembers');
     S.players.filter(p => p.team === t.id).forEach(p => {
-      const m = el('span', 'tmember', `<i style="background:${p.color}"></i>${esc(p.name)}`);
+      const m = el('span', 'tmember', `${SHAPE_ICONS[p.shape || 'blob'](t.color)}${esc(p.name)}`);
       if (hotSeat) {
         const x = el('button', 'mini bad', '✕');
         x.style.cssText = 'padding:0 4px;font-size:9px;line-height:1.4';
@@ -4906,7 +5194,7 @@ function render() {
   if (S.phase === 'lobby') { renderLobby(); return; }
   pumpAuction();
   syncPieces();
-  renderDice(false);
+  renderDice();
   renderHUD();
   renderCardPopup();
   const ov = $('#overlay');
@@ -4998,6 +5286,17 @@ const Net = (() => {
     if (typeof S !== 'undefined' && S && S.phase === 'lobby') renderLobby();
   }
 
+  /* Somebody arriving, leaving or reconnecting must never re-open the lobby
+     on top of a game in progress. Once the dice are rolling their arrival
+     changes exactly one thing on screen: the "N connected" chip. */
+  function refresh() {
+    if (typeof S === 'undefined' || !S) return;
+    if (S.phase === 'lobby') return renderLobby();
+    const stale = document.querySelector('#lobby');
+    if (stale) stale.remove();
+    renderHUD();
+  }
+
   function relayURL() {
     const q = new URLSearchParams(location.search).get('relay');
     return q || localStorage.getItem('mogul.relay') || '';
@@ -5025,7 +5324,7 @@ const Net = (() => {
           seatBack.name = name;
         }
         send(peerId, { t: 'you', id: seatBack.id });
-        if (S.phase === 'lobby') renderLobby(); else render();
+        refresh();
         return broadcast();
       }
 
@@ -5045,7 +5344,7 @@ const Net = (() => {
       seatByPeer.set(peerId, seat);
       if (uid) seatByUid.set(uid, seat);
       send(peerId, { t: 'you', id: seat });
-      renderLobby();
+      refresh();
       return broadcast();
     }
 
@@ -5066,16 +5365,25 @@ const Net = (() => {
     if (!seat) return;
     if (S.phase === 'lobby') {
       S.players = S.players.filter(p => p.id !== seat);
-      renderLobby();
+      refresh();
     } else {
-      Engine.log(S, 'A player lost connection — they can rejoin with the same name');
+      Engine.log(S, 'A player lost connection — their seat is held until they reopen the link');
       render();
     }
     broadcast();
   }
 
+  /* Eight browsers in a room means every keystroke that reaches the host is
+     answered with the whole game state — and a table renaming its teams
+     produces a lot of those. A burst is collapsed into one send on the next
+     tick; the state is complete each time, so only the last one matters. */
+  let pendingSend = null;
   function broadcast() {
-    send(null, { t: 'state', state: S });
+    if (pendingSend) return;
+    pendingSend = setTimeout(() => {
+      pendingSend = null;
+      if (send) send(null, { t: 'state', state: S });
+    }, 70);
   }
   api.broadcast = broadcast;
   api.peerCount = () => peers.size;
@@ -5145,7 +5453,7 @@ const Net = (() => {
     });
     peer.on('connection', (conn) => {
       const id = conn.peer;
-      conn.on('open', () => { conns.set(id, conn); peers.add(id); renderLobby(); });
+      conn.on('open', () => { conns.set(id, conn); peers.add(id); refresh(); });
       conn.on('data', (msg) => onGuestMessage(id, msg));
       conn.on('close', () => { conns.delete(id); onGuestGone(id); });
     });
@@ -5336,10 +5644,10 @@ const Net = (() => {
           let m; try { m = JSON.parse(payload); } catch (e) { return; }
           if (!m || !m.from) return;
           if (m.bye) return onGuestGone(m.from);
-          if (m.msg && m.msg.t === 'hello' && !peers.has(m.from)) { peers.add(m.from); renderLobby(); }
+          if (m.msg && m.msg.t === 'hello' && !peers.has(m.from)) { peers.add(m.from); refresh(); }
           if (m.msg) onGuestMessage(m.from, m.msg);
         });
-        c.onclose(() => { if (api.status === 'open') setStatus('error', 'The room connection dropped. Press "Try again" — your friends can rejoin with the same names.'); });
+        c.onclose(() => { if (api.status === 'open') setStatus('error', 'The room connection dropped. Press "Try again" — your friends get their seats back by reopening the link.'); });
 
         return b.id;
       } catch (e) { last = e; }
@@ -5374,7 +5682,7 @@ const Net = (() => {
           let m; try { m = JSON.parse(payload); } catch (e) { return; }
           onHostMessage(m);
         });
-        c.onclose(() => { if (api.status === 'open') setStatus('error', 'The connection dropped. Reload the link with the same name to get your seat back.'); });
+        c.onclose(() => { if (api.status === 'open') setStatus('error', 'The connection dropped. Reload the link to get your seat back.'); });
 
         send(null, hello(name));
         return b.id;
@@ -5414,7 +5722,7 @@ const Net = (() => {
           }
           return;
         }
-        if (msg.t === 'peer' && role === 'host') { peers.add(msg.id); renderLobby(); return; }
+        if (msg.t === 'peer' && role === 'host') { peers.add(msg.id); refresh(); return; }
         if (msg.t === 'gone') { if (role === 'host') onGuestGone(msg.id); else setStatus('error', 'The host left the room.'); return; }
         if (msg.t === 'from') {
           if (role === 'host') onGuestMessage(msg.id, msg.data);
@@ -5503,6 +5811,7 @@ const Net = (() => {
     const mode = api.mode;
     try { closeAll(); } catch (e) {}
     peers.clear(); seatByPeer.clear();
+    clearTimeout(pendingSend); pendingSend = null;
     send = null; api.mode = null; api.transport = null;
     net = null; LOCAL_ALL = true;
     return mode === 'host' ? api.host(preferred) : api.join(code, myName, preferred);
