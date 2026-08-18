@@ -4813,7 +4813,22 @@ function renderLobby() {
   const draft = key ? before.value : null;
   const caret = key && before.setSelectionRange ? [before.selectionStart, before.selectionEnd] : null;
 
+  /* Somebody naming their team rebuilds this screen for everyone, and a
+     fresh screen starts at the top. Eight people scrolled down to the team
+     cards were thrown back to the wordmark on every keystroke that landed. */
+  const scrolls = ['#lobby .lmain', '#lobby .lside', '#lobby'];
+  const was = scrolls.map(sel => {
+    const n = document.querySelector(sel);
+    return n ? n.scrollTop : 0;
+  });
+
   drawLobby();
+
+  scrolls.forEach((sel, i) => {
+    if (!was[i]) return;
+    const n = document.querySelector(sel);
+    if (n) n.scrollTop = was[i];
+  });
 
   if (!key) return;
   const after = document.querySelector('#lobby [data-keep="' + key + '"]');
@@ -5797,7 +5812,14 @@ const Net = (() => {
 
     if (msg.t === 'action') {
       const seat = seatByPeer.get(peerId);
-      if (!seat) return;
+      /* We are still hearing from them, so they are plainly still there —
+         something lost their seat on this side: a keepalive that expired
+         over a blip, a last will delivered late, a second connection that
+         took the mapping with it. Dropping the action in silence left them
+         pressing Roll against a game that had stopped listening, with a
+         page reload as the only cure. Ask them to say hello again instead;
+         the browser key in that hello puts them straight back in their seat. */
+      if (!seat) return send(peerId, { t: 'whoareyou' });
       Engine.applyAction(S, seat, msg.action);   // the host is the referee
       if (S.phase === 'lobby') renderLobby();
       else { const l = document.querySelector('#lobby'); if (l) l.remove(); render(); }
@@ -5839,6 +5861,7 @@ const Net = (() => {
 
   function onHostMessage(msg) {
     if (msg.t === 'you') MY_ID = msg.id;
+    if (msg.t === 'whoareyou') return reintroduce();
     if (msg.t === 'refused') return refused(msg.reason);
     if (msg.t === 'state') {
       S = msg.state;
@@ -5861,7 +5884,24 @@ const Net = (() => {
     setStatus('error', reason || 'The host turned this browser away.');
   }
 
-  api.send = (action) => send && send(null, { t: 'action', action });
+  /* The action that found the host no longer listening is the one that got
+     dropped, so saying hello again is only half the repair — without this
+     the button has to be pressed twice, once to wake the seat up and once
+     to actually play. It is only ever replayed after a host that ignored
+     it asked us who we were, so nothing can be applied twice. */
+  let lastAction = null;
+  api.send = (action) => {
+    lastAction = action;
+    return send && send(null, { t: 'action', action });
+  };
+
+  function reintroduce() {
+    if (!send) return;
+    send(null, hello(myName));
+    const again = lastAction;
+    lastAction = null;
+    if (again) setTimeout(() => send && send(null, { t: 'action', action: again }), 120);
+  }
 
   /* ============================================================
      transport: WebRTC (PeerJS)
