@@ -351,6 +351,24 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-2);
 }
 #flatlogo span{color:rgba(217,150,72,.22)}
 
+/* ---- account ---- */
+.acctbox{width:300px;padding:13px 14px}
+.accthead{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+.acctname{
+  font-family:var(--display);font-weight:800;font-size:17px;flex:1;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.acctbox .chattabs{margin-bottom:9px}
+.acctform{display:flex;flex-direction:column;gap:7px}
+.acctform input{padding:8px 10px;font-size:13px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:7px}
+.stile{
+  display:flex;flex-direction:column;align-items:center;gap:1px;
+  background:var(--panel-2);border-radius:10px;padding:8px 4px;
+}
+.stile b{font-family:var(--display);font-size:18px;font-weight:800;line-height:1}
+.stile span{font-size:9.5px;color:var(--muted);font-weight:800;text-align:center;letter-spacing:.2px}
+
 /* ---- teams ---- */
 .teambox{margin-top:10px}
 .teamcard{
@@ -1204,6 +1222,7 @@ const Engine = (() => {
       logSeq: 0,        // stable ids, so the UI can tell an old line from a new one
       lastMove: null,   // how the last token moved, so the UI can animate it
       moveSeq: 0,
+      gameId: null,     // set when play starts; identifies the game to the record books
       cardShow: null,   // transient: last card drawn, for the popup
       pending: null,      // { kind, ... }
       trades: [],
@@ -1412,6 +1431,9 @@ const Engine = (() => {
     }
     s.phase = 'playing';
     s.turn = 0; s.rolled = false; s.doubles = 0;
+    // one name for this game, so a result can only be written down once
+    // however many times the ending is broadcast
+    s.gameId = rid(12);
     log(s, `<b>Game started with a randomized players order. Good luck!</b>`);
   }
 
@@ -4811,6 +4833,8 @@ function drawLobby() {
   lob.innerHTML = '';
   const main = el('div', 'lmain');
   main.appendChild(el('h1', '', 'MO<span>GUL</span>'));
+  const acct = accountPanel();
+  if (acct) main.appendChild(acct);
 
   // A guest arriving on an invite link picks a name before connecting.
   const urlCode = Net.codeFromURL();
@@ -5075,6 +5099,107 @@ function teamsPanel() {
   return card;
 }
 
+/* The account card. Signing in is never required to play — it buys you a
+   name that follows you between devices, and a record that outlives the
+   tab. The form's contents live out here because a broadcast rebuilds
+   this whole screen and a half-typed password should survive that. */
+let authDraft = { mode: 'in', email: '', password: '', username: '' };
+
+function statTile(label, value) {
+  const t = el('div', 'stile');
+  t.append(el('b', '', value), el('span', '', label));
+  return t;
+}
+
+function accountPanel() {
+  if (!Account.configured()) return null;
+
+  const box = el('div', 'card acctbox');
+
+  if (Account.status === 'loading') {
+    box.appendChild(el('div', 'pmeta connecting', 'Looking for your account…'));
+    return box;
+  }
+
+  /* ---- signed in ---- */
+  if (Account.status === 'in' || (Account.status === 'busy' && Account.user)) {
+    const head = el('div', 'accthead');
+    head.append(
+      el('div', 'acctname', esc(Account.name() || '…')),
+      (() => {
+        const out = el('button', 'linkbtn', 'Sign out');
+        out.style.margin = '0';
+        out.onclick = () => Account.signOut();
+        return out;
+      })());
+    box.appendChild(head);
+
+    const s = Account.stats;
+    const rate = Account.winRate();
+    const grid = el('div', 'stats');
+    grid.append(
+      statTile('played', s ? String(s.games_played) : '0'),
+      statTile('won', s ? String(s.games_won) : '0'),
+      statTile('win rate', rate === null ? '—' : rate + '%'),
+      statTile('best streak', s ? String(s.best_streak) : '0'));
+    box.appendChild(grid);
+
+    if (s && s.current_streak > 1) {
+      box.appendChild(el('div', 'pmeta', `On a ${s.current_streak}-game run right now.`));
+    } else if (s && !s.games_played) {
+      box.appendChild(el('div', 'pmeta', 'No games on the board yet. Go and win one.'));
+    }
+    if (Account.error) box.appendChild(el('div', 'neterr', esc(Account.error)));
+    return box;
+  }
+
+  /* ---- signed out ---- */
+  const tabs = el('div', 'chattabs');
+  const tab = (key, label) => {
+    const b = el('button', authDraft.mode === key ? 'sel' : '', label);
+    b.onclick = () => { authDraft.mode = key; Account.error = ''; renderLobby(); };
+    return b;
+  };
+  tabs.append(tab('in', 'Sign in'), tab('up', 'Create account'));
+  box.appendChild(tabs);
+
+  const signup = authDraft.mode === 'up';
+  const fields = el('div', 'acctform');
+
+  const mk = (key, type, placeholder, keepKey, max) => {
+    const i = el('input');
+    i.type = type; i.placeholder = placeholder; i.value = authDraft[key];
+    i.dataset.keep = keepKey;
+    if (max) i.maxLength = max;
+    i.autocomplete = type === 'password' ? (signup ? 'new-password' : 'current-password') : 'email';
+    i.oninput = () => { authDraft[key] = i.value; };
+    i.onkeydown = (e) => { if (e.key === 'Enter') go(); };
+    return i;
+  };
+
+  if (signup) fields.appendChild(mk('username', 'text', 'Name on the board', 'acct-user', 14));
+  fields.appendChild(mk('email', 'email', 'Email', 'acct-mail'));
+  fields.appendChild(mk('password', 'password', signup ? 'Password (8+ characters)' : 'Password', 'acct-pass'));
+  box.appendChild(fields);
+
+  const go = () => {
+    if (signup) Account.signUp(authDraft.email, authDraft.password, authDraft.username);
+    else Account.signIn(authDraft.email, authDraft.password);
+  };
+
+  const btn = el('button', 'btn primary wide', signup ? 'Create account ➜' : 'Sign in ➜');
+  btn.style.marginTop = '9px';
+  btn.disabled = Account.status === 'busy';
+  if (Account.status === 'busy') btn.textContent = 'One moment…';
+  btn.onclick = go;
+  box.appendChild(btn);
+
+  box.appendChild(el('div', 'pmeta',
+    'Optional. Without one you still play under whatever name you type — you just have nothing to show for it afterwards.'));
+  if (Account.error) box.appendChild(el('div', 'neterr', esc(Account.error)));
+  return box;
+}
+
 function connectionPanel() {
   const box = el('div', 'card netbox');
 
@@ -5160,6 +5285,39 @@ function diagButton() {
 }
 
 /* A relay address makes the game work on networks that kill WebRTC. */
+/* Where the accounts live. Baked in for a normal deployment; this is here
+   so somebody running their own copy can point it at their own project
+   without editing the file. Neither value is a secret: the key only says
+   which project to talk to, and the policies decide the rest. */
+function accountField() {
+  const wrap = el('div', 'relaybox');
+  const set = Account.configured();
+  const toggle = el('button', 'linkbtn', set ? '⚙ Accounts (set)' : '⚙ Set up accounts');
+  const body = el('div', 'relaybody');
+  body.style.display = 'none';
+  toggle.onclick = () => { body.style.display = body.style.display === 'none' ? 'block' : 'none'; };
+
+  const cfg = Account.config();
+  const url = el('input');
+  url.type = 'text'; url.placeholder = 'https://xxxx.supabase.co'; url.value = cfg.url || '';
+  const key = el('input');
+  key.type = 'text'; key.placeholder = 'anon / publishable key'; key.value = cfg.anonKey || '';
+  key.style.marginTop = '6px';
+
+  const save = el('button', 'btn wide', 'Save');
+  save.style.marginTop = '8px';
+  save.onclick = async () => {
+    await Account.setConfig(url.value, key.value);
+    toast(url.value && key.value ? 'Accounts configured' : 'Accounts cleared');
+    renderLobby();
+  };
+  body.append(
+    el('div', 'pmeta', 'Optional. The game plays fine without an account — this only adds a name that follows you between devices, and a record of your games.'),
+    url, key, save);
+  wrap.append(toggle, body);
+  return wrap;
+}
+
 function relayField() {
   const wrap = el('div', 'relaybox');
   const toggle = el('button', 'linkbtn', Net.relayURL() ? '⚙ Relay server (set)' : '⚙ Use a relay server');
@@ -5222,6 +5380,7 @@ function settingsColumn(readOnly) {
     }
     sideCol.appendChild(row);
   });
+  sideCol.appendChild(accountField());
   return sideCol;
 }
 
@@ -5231,6 +5390,7 @@ function settingsColumn(readOnly) {
 
 function render() {
   if (S.phase === 'lobby') { renderLobby(); return; }
+  recordResult();
   pumpAuction();
   syncPieces();
   renderDice();
@@ -5240,10 +5400,24 @@ function render() {
   if (ov && ov.dataset.live) { /* keep open modals in sync elsewhere */ }
 }
 
+/* Only games played against other people count. Around one screen a
+   single browser holds every seat, so it would win every time — a record
+   built out of that would say nothing about anybody. */
+function recordResult() {
+  if (S.phase !== 'ended' || !S.gameId || !net) return;
+  const me = MY_ID ? Engine.P(S, MY_ID) : null;
+  if (!me) return;
+  const won = S.winnerTeam
+    ? Engine.teamOf(S, me.id) === S.winnerTeam
+    : S.winner === me.id;
+  Account.record(S.gameId, won, S.players.length, !!S.settings.teams);
+}
+
 function boot() {
   S = Engine.createState();
   const saved = localStorage.getItem('mogul.name');
   Engine.addPlayer(S, { name: saved || 'You', color: PLAYER_COLORS[3] });
+  Account.init();
   MY_ID = S.players[0].id;
   Sfx.init();
   bindBoard(Board3D);
@@ -5256,6 +5430,227 @@ function boot() {
     if (me) localStorage.setItem('mogul.name', me.name);
   });
 }
+</script>
+<script>/* ============================================================
+   MOGUL — accounts
+
+   An account is optional. Anyone handed a link can still play under a
+   name they typed, exactly as before; signing in only adds a name that
+   follows you between devices and a record of how you have done.
+
+   Supabase holds both. The key below is meant to be public — it routes
+   requests, it does not authorise them. What a signed-in browser may
+   read or write is decided by the policies on the tables, which is why
+   totals live in a table no client can write to: a browser records that
+   a game finished, and the database decides what that adds up to.
+   ============================================================ */
+
+const Account = (() => {
+  const CDN = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.3/dist/umd/supabase.js';
+
+  /* Set once, when the project exists. Kept overridable from storage so a
+     second deployment can point at its own project without a rebuild. */
+  const BUILT_IN = { url: '', anonKey: '' };
+
+  const api = {
+    status: 'off',    // off | loading | out | in | busy | error
+    error: '',
+    user: null,
+    profile: null,    // { id, username }
+    stats: null,      // { games_played, games_won, current_streak, best_streak }
+  };
+
+  let sb = null;
+
+  function config() {
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem('mogul.supabase') || '{}'); } catch (e) {}
+    return { url: saved.url || BUILT_IN.url, anonKey: saved.anonKey || BUILT_IN.anonKey };
+  }
+  api.config = config;
+  api.configured = () => { const c = config(); return !!(c.url && c.anonKey); };
+  api.setConfig = (url, anonKey) => {
+    if (url && anonKey) localStorage.setItem('mogul.supabase',
+      JSON.stringify({ url: String(url).trim(), anonKey: String(anonKey).trim() }));
+    else localStorage.removeItem('mogul.supabase');
+    sb = null;
+    api.status = 'off'; api.user = null; api.profile = null; api.stats = null;
+    return api.init();
+  };
+
+  function paint() {
+    if (typeof S === 'undefined' || !S) return;
+    adoptName();
+    if (S.phase === 'lobby') renderLobby(); else renderHUD();
+  }
+
+  /* Signed in, the account's name is the name on the board — there is no
+     point owning a name that follows you around if the seat still shows
+     whatever this browser last typed. Only in the lobby: renaming
+     somebody mid-game would rewrite the log under everyone's eyes. */
+  function adoptName() {
+    const want = api.name();
+    if (!want || S.phase !== 'lobby') return;
+    const me = (typeof MY_ID !== 'undefined' && MY_ID) ? Engine.P(S, MY_ID) : null;
+    if (!me || me.name === want) return;
+    me.name = want;
+    try { localStorage.setItem('mogul.name', want); } catch (e) {}
+    if (net && net.mode === 'guest') net.send({ type: 'rename', name: want });
+    else if (net && net.mode === 'host') net.broadcast();
+  }
+
+  function load() {
+    if (window.supabase && window.supabase.createClient) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const el = document.createElement('script');
+      el.src = CDN;
+      el.onload = resolve;
+      el.onerror = () => reject(new Error('Could not load the accounts library. Are you online?'));
+      document.head.appendChild(el);
+    });
+  }
+
+  function fail(e) {
+    api.status = api.user ? 'in' : 'out';
+    api.error = (e && e.message) || String(e || 'Something went wrong.');
+    paint();
+  }
+
+  /* ---------- session ---------- */
+
+  api.init = async function () {
+    const c = config();
+    if (!c.url || !c.anonKey) { api.status = 'off'; return; }
+    api.status = 'loading'; api.error = '';
+    try {
+      await load();
+      sb = window.supabase.createClient(c.url, c.anonKey, {
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+      });
+      sb.auth.onAuthStateChange((_event, session) => { adopt(session); });
+      const { data, error } = await sb.auth.getSession();
+      if (error) throw error;
+      await adopt(data.session);
+    } catch (e) { api.status = 'error'; api.error = (e && e.message) || String(e); paint(); }
+  };
+
+  async function adopt(session) {
+    const was = api.user && api.user.id;
+    api.user = session ? session.user : null;
+    if (!api.user) {
+      api.status = 'out'; api.profile = null; api.stats = null;
+      return paint();
+    }
+    api.status = 'in';
+    if (was !== api.user.id || !api.profile) await refresh();
+    paint();
+  }
+
+  /* The profile row is made by a trigger the instant the account is, but a
+     brand-new signup can outrun its own trigger by a few milliseconds. */
+  async function refresh() {
+    if (!sb || !api.user) return;
+    for (let tries = 0; tries < 4 && !api.profile; tries++) {
+      const { data } = await sb.from('profiles')
+        .select('id, username').eq('id', api.user.id).maybeSingle();
+      if (data) { api.profile = data; break; }
+      await new Promise(r => setTimeout(r, 250));
+    }
+    const { data: st } = await sb.from('player_stats')
+      .select('games_played, games_won, current_streak, best_streak')
+      .eq('player_id', api.user.id).maybeSingle();
+    api.stats = st || { games_played: 0, games_won: 0, current_streak: 0, best_streak: 0 };
+  }
+  api.refresh = async () => { api.profile = null; await refresh(); paint(); };
+
+  /* ---------- doors ---------- */
+
+  api.signUp = async function (email, password, username) {
+    if (!sb) return fail(new Error('Accounts are not set up on this copy of the game.'));
+    api.status = 'busy'; api.error = ''; paint();
+    const { data, error } = await sb.auth.signUp({
+      email: String(email || '').trim(),
+      password: String(password || ''),
+      options: { data: { username: String(username || '').trim().slice(0, 14) } },
+    });
+    if (error) return fail(error);
+    // a project that asks for email confirmation hands back a user with no session
+    if (!data.session) {
+      api.status = 'out';
+      api.error = 'Account created. Confirm it from your email, then sign in.';
+      return paint();
+    }
+    await adopt(data.session);
+  };
+
+  api.signIn = async function (email, password) {
+    if (!sb) return fail(new Error('Accounts are not set up on this copy of the game.'));
+    api.status = 'busy'; api.error = ''; paint();
+    const { data, error } = await sb.auth.signInWithPassword({
+      email: String(email || '').trim(),
+      password: String(password || ''),
+    });
+    if (error) return fail(error);
+    await adopt(data.session);
+  };
+
+  api.signOut = async function () {
+    if (!sb) return;
+    api.status = 'busy'; paint();
+    try { await sb.auth.signOut(); } catch (e) {}
+    api.user = null; api.profile = null; api.stats = null;
+    api.status = 'out'; api.error = '';
+    paint();
+  };
+
+  api.rename = async function (username) {
+    if (!sb || !api.user) return;
+    const name = String(username || '').trim().slice(0, 14);
+    if (!/^[A-Za-z0-9 _.-]{2,14}$/.test(name)) {
+      return fail(new Error('2 to 14 letters, digits, spaces, dots, dashes or underscores.'));
+    }
+    api.status = 'busy'; api.error = ''; paint();
+    const { error } = await sb.from('profiles').update({ username: name }).eq('id', api.user.id);
+    api.status = 'in';
+    if (error) return fail(error.code === '23505'
+      ? new Error('Somebody already goes by that name.') : error);
+    api.profile = null;
+    await refresh();
+    paint();
+  };
+
+  /* ---------- the record ---------- */
+
+  /* Written once per game per player, by that player's own browser. The
+     unique key on (player, game) means a replayed ending changes nothing,
+     and the totals are recomputed by the database, never sent by us. */
+  const written = new Set();
+  api.record = async function (gameId, won, players, teams) {
+    if (!sb || !api.user || !gameId || written.has(gameId)) return;
+    written.add(gameId);
+    const { error } = await sb.from('game_results').insert({
+      player_id: api.user.id,
+      game_id: String(gameId),
+      won: !!won,
+      players: Math.max(2, Math.min(12, players | 0)),
+      teams: !!teams,
+    });
+    if (error && error.code !== '23505') { written.delete(gameId); return; }
+    api.profile = api.profile || null;
+    await refresh();
+    paint();
+  };
+
+  api.winRate = () => {
+    const s = api.stats;
+    if (!s || !s.games_played) return null;
+    return Math.round((s.games_won / s.games_played) * 100);
+  };
+
+  api.name = () => (api.profile && api.profile.username) || null;
+
+  return api;
+})();
 </script>
 <script>/* ============================================================
    MOGUL — online play
@@ -5943,7 +6338,7 @@ const Net = (() => {
 window.MOGUL = {
   get S(){return S}, set S(v){S=v},
   get MY_ID(){return MY_ID}, get LOCAL_ALL(){return LOCAL_ALL},
-  Engine, Net, Board3D, Board2D, act,
+  Engine, Net, Account, Board3D, Board2D, act,
   get Board(){return Board}, get VIEW(){return VIEW}, setView,
   applyView, is3D,
   syncPieces, render, renderHUD, actorId, openTrade, closeModal, focusProperty, renderMyProperties,
