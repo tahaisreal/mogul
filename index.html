@@ -3622,6 +3622,23 @@ function renderDice() {
   Sfx.dice();
 }
 
+/* A landing is news, and news belongs to the arrival. While the pawn is
+   still crossing the board the screen holds whatever it was already
+   showing: the surprise you drew, the rent you owe and the card popup all
+   wait for the piece to actually get there. Reading the card first and
+   watching the hop afterwards was the wrong way round. */
+let walkUntil = 0;          // when the current hop sequence ends
+let logCeiling = Infinity;  // highest log id the centre log may show for now
+let shownLogId = 0;         // highest it has actually shown
+let landTimer = null;
+
+function releaseLanding() {
+  logCeiling = Infinity;
+  walkUntil = 0;
+  renderHUD();
+  renderCardPopup();
+}
+
 function syncPieces() {
   if (!Board.ready) return;
   Board.update();
@@ -3633,8 +3650,15 @@ function syncPieces() {
       const hops = Math.min(12, ((lm.to - lm.from) % TILES + TILES) % TILES);
       for (let k = 0; k < hops; k++) setTimeout(Sfx.step, k * 150);
       setTimeout(Sfx.land, hops * 150);
-    } else if (!lm.walk) {
-      Sfx.jail();
+      walkUntil = Date.now() + hops * 150;
+      logCeiling = shownLogId;          // freeze on what was already read
+      clearTimeout(landTimer);
+      landTimer = setTimeout(releaseLanding, hops * 150 + 60);
+    } else {
+      if (!lm.walk) Sfx.jail();
+      clearTimeout(landTimer);
+      logCeiling = Infinity;
+      walkUntil = 0;
     }
   }
 }
@@ -3888,7 +3912,12 @@ function renderCenterLog(slot) {
   if (S.phase !== 'lobby') slot.appendChild(line);
 
   const box = el('div', 'centerlog');
-  S.log.slice(-9).reverse().forEach(l => {
+  // the high-water mark is what actually reached the screen, never what the
+  // state happens to hold — otherwise a held line would unfreeze the next hop
+  const readable = S.log.filter(l => (l.id != null ? l.id : Infinity) <= logCeiling);
+  const last = readable[readable.length - 1];
+  if (last && last.id > shownLogId) shownLogId = last.id;
+  readable.slice(-9).reverse().forEach(l => {
     const row = settled(el('div', '', l.html), 'log:' + (l.id != null ? l.id : l.t));
     if (l.meta && l.meta.kind === 'trade') {
       const ref = row.querySelector('.lref');
@@ -4702,11 +4731,21 @@ function tradeCard(t) {
 }
 
 /* ---------- card popup ---------- */
-let cardEl = null, cardShownAt = 0, cardTimer = null;
+let cardEl = null, cardShownAt = 0, cardTimer = null, cardWait = null;
 function renderCardPopup() {
   const c = S.cardShow;
+  clearTimeout(cardWait);
   if (!c) { if (cardEl) { cardEl.remove(); cardEl = null; } return; }
   if (c.at === cardShownAt) return;              // already on screen
+
+  /* The card says what the tile did to you, so it is meaningless until you
+     are standing on it. Landing first, reading second. */
+  const travelling = walkUntil - Date.now();
+  if (travelling > 0) {
+    cardWait = setTimeout(renderCardPopup, travelling + 60);
+    return;
+  }
+
   cardShownAt = c.at;
   Sfx.card();
   if (cardEl) cardEl.remove();
