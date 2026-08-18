@@ -5350,7 +5350,7 @@ const Net = (() => {
 
   function onGuestMessage(peerId, msg) {
     if (msg.t === 'hello') {
-      const name = String(msg.name || 'Player').slice(0, 14);
+      const name = (String(msg.name || '').trim() || 'Player').slice(0, 14);
       const uid = String(msg.uid || '').slice(0, 40);
 
       // Coming back: the key decides, and only the key. A name is a label.
@@ -5370,8 +5370,9 @@ const Net = (() => {
       if (S.phase !== 'lobby') {
         return send(peerId, { t: 'refused', reason: 'The game already started, and this browser has no seat in it.' });
       }
-      if (S.players.some(p => p.name === name)) {
-        return send(peerId, { t: 'refused', reason: 'That name is already taken in this room.' });
+      const same = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
+      if (S.players.some(p => same(p.name, name))) {
+        return send(peerId, { t: 'refused', reason: `Somebody in this room is already called "${name}". Pick another name.` });
       }
 
       const taken = S.players.map(p => p.color);
@@ -5431,12 +5432,26 @@ const Net = (() => {
 
   function onHostMessage(msg) {
     if (msg.t === 'you') MY_ID = msg.id;
-    if (msg.t === 'refused') setStatus('error', msg.reason);
+    if (msg.t === 'refused') return refused(msg.reason);
     if (msg.t === 'state') {
       S = msg.state;
       if (S.phase === 'lobby') renderLobby();
       else { const l = document.querySelector('#lobby'); if (l) l.remove(); render(); }
     }
+  }
+
+  /* Turned away at the door. The old code just parked an error on the
+     connection panel, whose only offer was "Try again" — which retried with
+     the very name that had been refused, forever. There is nothing to retry:
+     drop the half-open connection and hand the screen back to the join box
+     with the reason on it, so the name can simply be changed. */
+  function refused(reason) {
+    try { closeAll(); } catch (e) {}
+    closeAll = () => {};
+    send = null;
+    api.mode = null; api.transport = null;
+    net = null; LOCAL_ALL = true;
+    setStatus('error', reason || 'The host turned this browser away.');
   }
 
   api.send = (action) => send && send(null, { t: 'action', action });
