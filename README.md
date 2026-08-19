@@ -182,9 +182,10 @@ sa barre de propriétaire.
 Avec le réglage **Vacation cash**, la case **Vacation** garde tout ce que la
 banque encaisse jusqu'à ce que quelqu'un tombe dessus. Le montant s'affiche sur
 la case elle-même, en vert : une cagnotte qu'on ne voit pas est une cagnotte
-pour laquelle personne ne joue. La pastille disparaît une fois la cagnotte
-remportée — un « 0 $ » affiché se lirait comme « il n'y a rien à gagner »
-plutôt que comme « il n'y a rien ici ».
+pour laquelle personne ne joue. Elle reste affichée à zéro, en gris — les deux
+moments où on va la regarder sont le début de partie et juste après que
+quelqu'un l'a ramassée, et une case nue ne répond à rien. La pastille ne
+disparaît que si le réglage lui-même est décoché.
 
 En prison, on continue de toucher ses loyers. Le réglage **Don't collect rent
 while in prison** existe toujours mais arrive décoché : une cellule doit coûter
