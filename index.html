@@ -49,10 +49,6 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-2);
 #app{position:relative;height:100vh;width:100vw;overflow:hidden}
 #stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
 #scene{display:none;position:absolute;inset:0;background:#07070f}
-#scene.loading::after{
-  content:'Loading the 3D board…';position:absolute;inset:0;display:flex;align-items:center;
-  justify-content:center;color:var(--muted);font-weight:800;
-}
 #lobby{background:rgba(12,8,5,.84)}
 #hud{position:absolute;inset:0;pointer-events:none;z-index:12}
 .hud-slot{position:absolute;display:flex;flex-direction:column;gap:10px}
@@ -101,15 +97,18 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-2);
 /* ---------------- board ---------------- */
 #board{
   /* Every tile size is derived here, not measured in JS: --per normal tracks
-     of 1u plus two corners of 1.42u, minus padding and the gaps. */
-  --corner:1.42;
-  --u:calc((var(--board) - 6px - (var(--per) + 1) * 2px) / (var(--per) + var(--corner) * 2));
+     of 1u plus two corners, minus the padding and the gaps. The gap is a
+     variable because the formula has to subtract exactly what the grid adds. */
+  --corner:1.6;
+  --gap:5px;
+  --pad:6px;
+  --u:calc((var(--board) - var(--pad) * 2 - (var(--per) + 1) * var(--gap)) / (var(--per) + var(--corner) * 2));
   position:relative;width:var(--board);height:var(--board);
   display:grid;
   grid-template-columns:calc(var(--u) * var(--corner)) repeat(var(--per),var(--u)) calc(var(--u) * var(--corner));
   grid-template-rows:calc(var(--u) * var(--corner)) repeat(var(--per),var(--u)) calc(var(--u) * var(--corner));
-  gap:2px;
-  background:#0b0a18;border-radius:16px;padding:4px;
+  gap:var(--gap);
+  background:#0b0a18;border-radius:18px;padding:var(--pad);
   transform-style:preserve-3d;
   transform:rotateX(var(--tilt)) translateY(calc(var(--board) * .04));
   transition:transform .45s cubic-bezier(.4,0,.2,1);
@@ -120,26 +119,50 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-2);
     0 40px 90px rgba(0,0,0,.7);
 }
 :root{--tilt:0deg}
+/* A card, not a wash of colour: one flat plate, a hairline around it, and a
+   sliver of light on the top edge. Whatever colour a tile has comes from its
+   own flag (see .t-art), never from a decorative gradient. */
 .tile{
-  position:relative;border-radius:7px;transform:translateZ(0);
-  background:linear-gradient(180deg,#262450 0%,#1c1a3a 62%,#191733 100%);
-  box-shadow:inset 0 0 0 1px rgba(255,255,255,.05), 0 1px 0 rgba(0,0,0,.35);
+  position:relative;border-radius:9px;transform:translateZ(0);
+  background:#1d1b39;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,.055),
+    inset 0 1px 0 rgba(255,255,255,.075),
+    0 1px 2px rgba(0,0,0,.45);
   display:flex;flex-direction:column;overflow:hidden;
-  transition:box-shadow .2s, filter .2s;
+  transition:box-shadow .2s;
   cursor:default;
 }
 .tile.clickable{cursor:pointer}
-.tile:hover{box-shadow:inset 0 0 0 1.5px rgba(240,189,124,.85), 0 0 18px rgba(240,189,124,.25);filter:brightness(1.08)}
+/* Hover says "this one" and stops there. It used to say it with an amber
+   ring, an 18px halo and a brightness bump at once, and the card lit up like
+   a different design every time the mouse crossed it — the deed that pops up
+   is the real answer to a hover. The card keeps its own shadows, which the
+   old rule was throwing away. */
+.tile:hover{
+  box-shadow:
+    inset 0 0 0 1.5px rgba(255,255,255,.2),
+    inset 0 1px 0 rgba(255,255,255,.075),
+    0 1px 2px rgba(0,0,0,.45);
+}
 
-/* hover focus: light up what matters, never shade the rest */
+/* Following a player or a set: a deliberate act, so it may shout. */
 .tile.hl{
   box-shadow:inset 0 0 0 2px var(--own,var(--accent-2)), 0 0 22px var(--own,var(--accent-2));
   transform:translateZ(14px);z-index:4;
 }
-.tile.corner{background:linear-gradient(160deg,#2b2857 0%,#1b1938 70%)}
+/* The tiles that belong to no country get their own plate colour, so a side
+   made of airports and utilities still has a rhythm. */
+.tile.t-airport,.tile.t-utility{background:#1a2444}
+.tile.t-treasure,.tile.t-surprise,.tile.t-tax{background:#1b1935}
+.tile.corner{background:#232049}
+/* Three slots down the tile, outer edge to inner: the price, the name, and
+   the emblem — a country's flag, or the icon of whatever else the tile is.
+   The name takes whatever is left in the middle, so the price and the flag
+   always sit on their own edges however tall the tile is. */
 .tile-body{
   position:absolute;inset:0;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;gap:2px;padding:4px;z-index:3;
+  align-items:stretch;justify-content:space-between;gap:2px;padding:5px 4px;z-index:3;
 }
 /* Side tiles rotate so the name reads along the edge. A rotated box swaps its
    axes, so the body is sized height-for-width against its tile. */
@@ -152,22 +175,67 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-2);
 .side-r .tile-body{transform:rotate(90deg)}
 .side-l .tile-body{transform:rotate(-90deg)}
 .side-b .tile-body{flex-direction:column-reverse}
+/* The outer edge is the owner bar's, occupied or not: the card starts under
+   it, so a tile does not reflow the day somebody buys it. Rotating the body
+   turns its own top into the tile's outer edge, which is why three sides out
+   of four reserve the same padding-top. */
+.side-t .tile-body,.side-l .tile-body,.side-r .tile-body{padding-top:10px}
+.side-b .tile-body{padding-bottom:10px}
 .tile.corner .tile-body{transform:none;inset:0;width:auto;height:auto;margin:0;flex-direction:column}
 
 .t-name{
-  font-size:clamp(7px, calc(var(--u) * .165), 12px);
-  font-weight:800;line-height:1.07;text-align:center;letter-spacing:-.2px;
+  flex:1 1 auto;min-height:0;display:grid;place-items:center;
+  font-size:clamp(7px, calc(var(--u) * .185), 14px);
+  font-weight:800;line-height:1.08;text-align:center;letter-spacing:-.2px;
   padding:0 1px;overflow-wrap:normal;word-break:keep-all;hyphens:none;
+  color:#f2f0ff;text-shadow:0 1px 2px rgba(4,4,12,.75);
 }
-.t-price{font-size:10px;font-weight:800;color:#b6b1dd;letter-spacing:.2px}
+/* The price is a plate, not a caption: a dark chip pinned to the outer end of
+   the card, the same size on every tile so the ring reads as a price list. */
+.t-price{
+  flex:0 0 auto;font-size:clamp(8px, calc(var(--u) * .155), 12.5px);
+  font-weight:900;color:#d3cef5;letter-spacing:.2px;text-align:center;
+  background:rgba(6,6,16,.56);border-radius:5px;padding:1px 0;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.055);
+  margin:0 -1px;min-height:1px;
+}
+.tile:not(.t-property):not(.t-airport):not(.t-utility):not(.t-tax) .t-price{background:none}
+.t-emblem{flex:0 0 auto;display:flex;align-items:center;justify-content:center;min-height:0}
+/* The name is happy to read along the edge; a flag is not. Rotating the body
+   was tipping Italy onto its side and standing Germany on end, so whatever
+   sits in the emblem turns back the other way and stays upright. */
+.side-l .t-emblem > *{transform:rotate(90deg)}
+.side-r .t-emblem > *{transform:rotate(-90deg)}
+/* The flag is the tile's identity, so it is the biggest thing on it — a
+   coin sitting on the inner edge, which is what makes the ring readable
+   from across the table without a single band of colour. */
 .t-flag{
-  width:clamp(14px, calc(var(--u) * .3), 22px);
-  height:clamp(14px, calc(var(--u) * .3), 22px);
+  width:clamp(16px, calc(var(--u) * .46), 34px);
+  height:clamp(16px, calc(var(--u) * .46), 34px);
   border-radius:50%;overflow:hidden;flex:0 0 auto;
-  box-shadow:0 0 0 1.5px rgba(255,255,255,.85), 0 2px 6px rgba(0,0,0,.5);
+  /* a neutral hairline, never the group colour: half these flags are already
+     the colour of their own set, and a red rim on a red flag is no rim */
+  box-shadow:0 0 0 1.6px rgba(255,255,255,.34),
+             0 0 0 3.2px rgba(8,8,18,.85),
+             0 2px 8px rgba(0,0,0,.6);
 }
 .t-flag svg{width:100%;height:100%;display:block}
-.t-icon{font-size:clamp(13px, calc(var(--u) * .28), 19px);line-height:1}
+/* Icons are drawn, not typed: an emoji is a different picture on every
+   machine, and several of these do not exist at all on Windows. */
+.t-icon{
+  line-height:0;display:flex;align-items:center;justify-content:center;
+  color:var(--ac,#b7b1e4);
+}
+.t-icon svg{
+  width:clamp(15px, calc(var(--u) * .42), 29px);height:auto;display:block;
+  /* the icon lights its own patch of card, the way the flags do */
+  filter:drop-shadow(0 0 7px currentColor) drop-shadow(0 1px 2px rgba(0,0,0,.55));
+}
+.t-icon.glyph{
+  font-family:var(--display);font-weight:900;line-height:1;
+  font-size:clamp(15px, calc(var(--u) * .46), 30px);
+  text-shadow:0 1px 3px rgba(0,0,0,.5);
+}
 .t-sub{font-size:9px;color:var(--muted);font-weight:700}
 
 /* corner price badge, always upright */
@@ -189,10 +257,12 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-2);
 
 /* buildings row */
 .houses{position:absolute;display:flex;gap:2px;z-index:4}
-.side-t .houses{top:8px;left:0;right:0;justify-content:center}
-.side-b .houses{bottom:8px;left:0;right:0;justify-content:center}
-.side-l .houses{left:8px;top:0;bottom:0;flex-direction:column;justify-content:center}
-.side-r .houses{right:8px;top:0;bottom:0;flex-direction:column;justify-content:center}
+.side-t .houses{top:12px;left:0;right:0;justify-content:center}
+.side-b .houses{bottom:12px;left:0;right:0;justify-content:center}
+.side-l .houses{left:12px;top:0;bottom:0;flex-direction:column;justify-content:center}
+.side-r .houses{right:12px;top:0;bottom:0;flex-direction:column;justify-content:center}
+.tile.built .t-price{visibility:hidden}
+.tile.mortgaged .t-emblem{opacity:.2}
 .house{width:6px;height:6px;border-radius:1.5px;background:var(--good);box-shadow:0 0 5px rgba(74,222,128,.7)}
 .hotel{width:14px;height:7px;border-radius:2px;background:var(--bad);box-shadow:0 0 6px rgba(248,113,113,.7)}
 .mortgaged::after{
@@ -298,35 +368,45 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-2);
 #hud.flatview .hud-slot.bc{bottom:var(--barlift,18px)}
 #scene.flat #board{transform:none}
 #scene.flat #center{justify-content:flex-start;padding-top:5%}
-/* country band on the outer edge, owner bar on the inner one — opposite ends,
-   so a country colour can never be mistaken for a player colour */
-/* The country bleeds in from the outer edge and dies out before the middle:
-   the tile stays dark enough to read, and the only hard colour on the board
-   is a deed. */
-.tile .band{
-  position:absolute;inset:0;z-index:0;pointer-events:none;
-  background:linear-gradient(var(--gdir,180deg),
-    var(--gc,transparent) 0%,
-    color-mix(in srgb, var(--gc,transparent) 55%, transparent) 26%,
-    rgba(0,0,0,0) 62%);
-  opacity:.32;
+/* The country as light rather than as paint. The tile's own flag is blown up
+   behind the card and blurred until only its colours are left — Italy's green
+   and red, Japan's white and crimson — then masked so it dies out before it
+   reaches the name. A real flag says which set a tile belongs to faster than
+   any single swatch can, and it can never be mistaken for a player's colour,
+   which is still the only hard edge of colour on the board. */
+.tile .t-art{
+  position:absolute;inset:0;z-index:0;overflow:hidden;border-radius:inherit;
+  pointer-events:none;opacity:.68;
+  /* strongest on the outer edge, still present behind the name, gone by the
+     time it reaches the flag badge — the badge has to stay the crisp one */
+  -webkit-mask-image:linear-gradient(var(--gdir,180deg),#000 0%,rgba(0,0,0,.72) 52%,rgba(0,0,0,.12) 100%);
+  mask-image:linear-gradient(var(--gdir,180deg),#000 0%,rgba(0,0,0,.72) 52%,rgba(0,0,0,.12) 100%);
+}
+/* oversized and offset so the blur pulls in more flag, never the empty space
+   around it */
+.tile .t-art svg{
+  position:absolute;left:-40%;top:-40%;width:180%;height:180%;display:block;
+  /* pushed dark on purpose: at full brightness the white half of the Italian
+     flag turned the middle of the card into a page, and the name sat on it
+     invisible. Saturation goes up by the same hand that takes the light out,
+     so the hue survives the dimming. */
+  filter:blur(9px) saturate(1.9) brightness(.6);
 }
 .side-t{--gdir:180deg}
 .side-b{--gdir:0deg}
 .side-l{--gdir:90deg}
 .side-r{--gdir:270deg}
-.tile.owned .band{opacity:.2}
-@supports not (background:color-mix(in srgb,red 50%,transparent)){
-  .tile .band{background:linear-gradient(var(--gdir,180deg), var(--gc,transparent) 0%, rgba(0,0,0,0) 60%)}
-}
+/* a deed outranks its country: the wash steps back so the owner bar leads */
+.tile.owned .t-art{opacity:.44}
+.tile.mortgaged .t-art{opacity:.12}
 
 /* Owned is the one thing that gets a hard edge, so a deed reads instantly. */
 .tile .strip{opacity:0;z-index:2;transition:opacity .25s}
 .tile.owned .strip{opacity:1}
-.side-t .strip{top:0;left:0;right:0;height:9px;border-radius:7px 7px 3px 3px}
-.side-b .strip{bottom:0;left:0;right:0;height:9px;border-radius:3px 3px 7px 7px}
-.side-l .strip{left:0;top:0;bottom:0;width:9px;border-radius:7px 3px 3px 7px}
-.side-r .strip{right:0;top:0;bottom:0;width:9px;border-radius:3px 7px 7px 3px}
+.side-t .strip{top:0;left:0;right:0;height:9px;border-radius:9px 9px 3px 3px}
+.side-b .strip{bottom:0;left:0;right:0;height:9px;border-radius:3px 3px 9px 9px}
+.side-l .strip{left:0;top:0;bottom:0;width:9px;border-radius:9px 3px 3px 9px}
+.side-r .strip{right:0;top:0;bottom:0;width:9px;border-radius:3px 9px 9px 3px}
 .tile.owned{box-shadow:inset 0 0 0 1px rgba(255,255,255,.08), 0 0 14px -4px var(--ownc,transparent)}
 .tile.dim{filter:brightness(.42) saturate(.5)}
 .tile .mortlabel{
@@ -338,8 +418,22 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-2);
 .side-l .mortlabel{right:9px;top:50%;transform:translateY(-50%) rotate(-90deg)}
 .side-r .mortlabel{left:9px;top:50%;transform:translateY(-50%) rotate(90deg)}
 .tile.corner{display:flex;align-items:center;justify-content:center}
-.tile.corner .t-name{font-size:clamp(8px, calc(var(--u) * .155), 12px);text-transform:uppercase}
-.tile.corner .t-icon{font-size:clamp(15px, calc(var(--u) * .34), 26px)}
+.tile.corner .t-name{font-size:clamp(8px, calc(var(--u) * .17), 13px);text-transform:uppercase}
+.tile.corner .t-icon svg{width:clamp(19px, calc(var(--u) * .46), 40px)}
+/* Vacation holds every dollar the bank has taken until somebody lands on
+   it. A pot nobody can see is a pot nobody plays for, so it sits on the
+   corner itself rather than in a panel — and disappears the moment it is
+   won, because an empty chip reads as $0 owed rather than nothing there. */
+.t-pot{
+  flex:0 0 auto;align-self:center;
+  font-family:var(--display);font-weight:900;line-height:1.25;
+  font-size:clamp(9px, calc(var(--u) * .215), 16px);
+  color:#08170f;background:var(--good);
+  border-radius:99px;padding:0 8px;
+  box-shadow:0 0 14px -2px var(--good), inset 0 1px 0 rgba(255,255,255,.4);
+}
+.t-pot:empty{display:none}
+
 /* pieces carry their chosen shape here too, so lobby, 2D and 3D agree */
 .tbody.shaped{background:none;box-shadow:none}
 .tbody.shaped svg{position:absolute;inset:0;width:100%;height:100%}
@@ -398,6 +492,14 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-2);
   font-size:15px;line-height:1;padding:4px 6px;cursor:pointer;
 }
 .emojipick button.sel{border-color:var(--accent-2)}
+.colorpick{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+.colorpick button{
+  width:21px;height:21px;border-radius:50%;padding:0;
+  border:2px solid transparent;cursor:pointer;transition:transform .12s var(--ease);
+}
+.colorpick button:not(:disabled):hover{transform:scale(1.15)}
+.colorpick button.sel{border-color:#fff;transform:scale(1.15)}
+.colorpick button:disabled{cursor:default;filter:grayscale(.7)}
 
 /* ---- chat ---- */
 .chatcard{padding:10px 11px}
@@ -910,7 +1012,6 @@ input[type=text]:focus,input[type=number]:focus,input[type=email]:focus,input[ty
 
 /* the scene owns the window now */
 #scene{display:block}
-#scene.failed{display:flex;align-items:center;justify-content:center}
 .scenefail{max-width:420px;text-align:center;padding:26px}
 .scenefail h2{font-family:var(--display);margin:0 0 8px}
 .scenefail p{color:var(--muted);line-height:1.5;margin:6px 0}
@@ -1001,8 +1102,9 @@ const GROUPS = {
    Emoji flags are not an option — Windows does not render them. */
 const STAR = "0,-1 0.225,-0.309 0.951,-0.309 0.363,0.118 0.588,0.809 0,0.382 -0.588,0.809 -0.363,0.118 -0.951,-0.309 -0.225,-0.309";
 const FLAGS = {
-  BR: `<svg viewBox="0 0 20 20"><rect width="20" height="20" fill="#009c3b"/><path d="M10 1.6 18.4 10 10 18.4 1.6 10Z" fill="#ffdf00"/><circle cx="10" cy="10" r="4.1" fill="#002776"/><path d="M6.3 8.7a8 8 0 0 1 7.5 1.6" stroke="#fff" stroke-width="1.15" fill="none"/></svg>`,
-  MA: `<svg viewBox="0 0 20 20"><rect width="20" height="20" fill="#c1272d"/><polygon points="10,4.4 13.3,14.5 4.7,8.3 15.3,8.3 6.7,14.5" fill="none" stroke="#006233" stroke-width="0.9" stroke-linejoin="round"/></svg>`,
+  BR: `<svg viewBox="0 0 20 20"><rect width="20" height="20" fill="#009b3a"/><path d="M10 2.4 17.6 10 10 17.6 2.4 10Z" fill="#fedf00"/><circle cx="10" cy="10" r="3.6" fill="#002776"/><path d="M6.6 8.8a7.6 7.6 0 0 1 6.9 1.6" stroke="#fff" stroke-width="1.05" fill="none"/></svg>`,
+  /* the real pentagram: five points joined every other one, in one stroke */
+  MA: `<svg viewBox="0 0 20 20"><rect width="20" height="20" fill="#c1272d"/><path d="M10 5 12.94 14.05 5.24 8.45 14.76 8.45 7.06 14.05Z" fill="none" stroke="#006233" stroke-width="1.15" stroke-linejoin="round"/></svg>`,
   IN: `<svg viewBox="0 0 20 20"><rect width="20" height="6.67" fill="#ff9933"/><rect y="6.67" width="20" height="6.66" fill="#fff"/><rect y="13.33" width="20" height="6.67" fill="#138808"/><circle cx="10" cy="10" r="2.5" fill="none" stroke="#000080" stroke-width="0.75"/><circle cx="10" cy="10" r="0.55" fill="#000080"/></svg>`,
   JP: `<svg viewBox="0 0 20 20"><rect width="20" height="20" fill="#fff"/><circle cx="10" cy="10" r="5.3" fill="#bc002d"/></svg>`,
   IT: `<svg viewBox="0 0 20 20"><rect width="6.67" height="20" fill="#009246"/><rect x="6.67" width="6.66" height="20" fill="#fff"/><rect x="13.33" width="6.67" height="20" fill="#ce2b37"/></svg>`,
@@ -1013,6 +1115,31 @@ const FLAGS = {
   US: `<svg viewBox="0 0 20 20"><rect width="20" height="20" fill="#fff"/><g fill="#b22234"><rect width="20" height="1.54"/><rect y="3.08" width="20" height="1.54"/><rect y="6.15" width="20" height="1.54"/><rect y="9.23" width="20" height="1.54"/><rect y="12.31" width="20" height="1.54"/><rect y="15.38" width="20" height="1.54"/><rect y="18.46" width="20" height="1.54"/></g><rect width="9.5" height="10.77" fill="#3c3b6e"/><g fill="#fff"><polygon points="${STAR}" transform="translate(2.6,2.6) scale(1.15)"/><polygon points="${STAR}" transform="translate(6.9,2.6) scale(1.15)"/><polygon points="${STAR}" transform="translate(4.75,5.4) scale(1.15)"/><polygon points="${STAR}" transform="translate(2.6,8.2) scale(1.15)"/><polygon points="${STAR}" transform="translate(6.9,8.2) scale(1.15)"/></g></svg>`,
 };
 
+/* Tile icons, drawn rather than typed. Emoji were the obvious shortcut and
+   the wrong one: they are a different picture on every machine, several of
+   these have no glyph at all on Windows, and no two of them share a weight.
+   One flat path each, inheriting the tile's accent colour. */
+const ICONS = {
+  start:      `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.6 4.8 11 12l-8.4 7.2zM12.8 4.8 21.2 12l-8.4 7.2z"/></svg>`,
+  prison:     `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3.2 2.6h2.2v18.8H3.2zM8.7 2.6h2.2v18.8H8.7zM13.1 2.6h2.2v18.8h-2.2zM18.6 2.6h2.2v18.8h-2.2zM2.4 10.9h19.2v2.2H2.4z"/></svg>`,
+  gotoprison: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.6 2.6h2.2v18.8h-2.2zM20.4 2.6h2.2v18.8h-2.2zM1.4 12 7.9 6.7v3.2h4.4v4.2H7.9v3.2z"/></svg>`,
+  vacation:   `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.4c5 0 9 3.5 9.3 7.8H2.7C3 5.9 7 2.4 12 2.4z"/><path d="M11.05 11.4h1.9v9.1a.95.95 0 0 1-1.9 0z"/></svg>`,
+  airport:    `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1.9c.9 0 1.6 1.5 1.6 3.4v2.5l8 4.7v2.4l-8-2.4v4.4l2.7 2v1.9L12 19.9l-4.3 1.3v-1.9l2.7-2v-4.4l-8 2.4v-2.4l8-4.7V5.3c0-1.9.7-3.4 1.6-3.4z"/></svg>`,
+  treasure:   `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3.6 10.2V8.7a3.6 3.6 0 0 1 3.6-3.6h9.6a3.6 3.6 0 0 1 3.6 3.6v1.5h-6.4V8.8h-4v1.4zM3.6 11.7h6.4v1.5h4v-1.5h6.4v5.6a2.6 2.6 0 0 1-2.6 2.6H6.2a2.6 2.6 0 0 1-2.6-2.6z"/></svg>`,
+  tax:        `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2.4" y="5.8" width="19.2" height="12.4" rx="1.8"/><circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none"/></svg>`,
+  power:      `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13.7 1.8 4.2 13.9h5.7l-1 8.3 9.9-12.6h-5.9z"/></svg>`,
+  gas:        `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.7 1.8c3.7 3.3 5.8 6.5 5.8 9.7a6.4 6.4 0 1 1-12.8 0c0-2 .8-3.9 2.2-5.5 0 1.9.8 3 1.8 3s1.6-1 1.4-2.4c-.2-1.7 0-3.3.6-4.8z"/></svg>`,
+  water:      `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.2c3.9 4.8 6.4 8.3 6.4 11.3a6.4 6.4 0 1 1-12.8 0c0-3 2.5-6.5 6.4-11.3z"/></svg>`,
+};
+
+/* One accent per kind of tile, so the icons read as a set instead of as ten
+   unrelated pictures. Utilities are keyed by their own icon, not their type. */
+const TILE_ACCENT = {
+  start: '#5ed17f', prison: '#c2bcee', gotoprison: '#f08f8f', vacation: '#4fd1b0',
+  airport: '#79b0f2', treasure: '#f0bd7c', surprise: '#e07cf0', tax: '#f0928f',
+  power: '#f3c94f', gas: '#f0913e', water: '#5cc9f0',
+};
+
 /* helper: base rent scales with price, tuned so a 140$ tile rents for 10$ */
 const base = (p) => Math.max(2, Math.round(p / 14));
 
@@ -1021,6 +1148,11 @@ function prop(name, group, price) {
 }
 const airport = (name) => ({ type: 'airport', name, group: 'AIR', price: 200, rent: [25, 50, 100, 200] });
 const utility = (name, icon) => ({ type: 'utility', name, group: 'UTL', price: 150, icon });
+
+/* Companies stack, the way airports do: the more of them one side holds, the
+   harder the meter spins. One multiplier per company on the board — cornering
+   the lot is what the last one is for. */
+const UTILITY_MULT = [4, 10, 15];
 
 const BOARD = [
   /* --- top edge, left to right --- */
@@ -1170,7 +1302,10 @@ const DEFAULT_SETTINGS = {
   doubleRentFullSet: true,
   vacationCash: true,
   auction: false,
-  noRentInPrison: true,
+  /* Off by default: a cell is meant to cost you your turns, not your rent.
+     Losing both at once made prison the one square that could decide a game
+     on its own, so the rule stays available and stays unticked. */
+  noRentInPrison: false,
   mortgage: true,
   evenBuild: true,
   randomOrder: true,
@@ -1345,7 +1480,7 @@ const Engine = (() => {
     }
     if (t.type === 'utility') {
       const n = countOwned(s, o.by, 'UTL');
-      return (n >= 2 ? 10 : 4) * (roll || 7);
+      return (UTILITY_MULT[Math.min(n, UTILITY_MULT.length) - 1] || 0) * (roll || 7);
     }
     let r = t.rent[o.houses];
     if (o.houses === 0 && s.settings.doubleRentFullSet && ownsFullSet(s, o.by, t.group)) r *= 2;
@@ -1533,7 +1668,10 @@ const Engine = (() => {
       case 'prison':
         break;
       case 'tax': {
-        const amount = t.flat != null ? t.flat : Math.round(netWorth(s, playerId) * t.percent / 100);
+        /* A cut of what is in the wallet, not of what the board is worth.
+           Counting houses and deeds made this the most feared tile on the
+           table: the player in front paid thousands for landing on it. */
+        const amount = t.flat != null ? t.flat : Math.round(p.cash * t.percent / 100);
         toBank(s, playerId, amount, t.name);
         break;
       }
@@ -1897,11 +2035,18 @@ const Engine = (() => {
       case 'proposeTrade': {
         if (!P(s, a.to) || a.to === playerId) break;
         const ownedBy = (i, who) => s.owned[i] && s.owned[i].by === who && !s.owned[i].houses;
+        /* Nobody can put more on the table than they are holding — but a
+           player mid-debt is holding a negative number, and capping an empty
+           side of the deal against that turned "gives nothing" into "gives
+           minus three hundred". A gift in reverse: the friend bailing a
+           teammate out paid the gift and the debt both, out of one pocket,
+           while the offer on screen still read "in nothing". */
+        const purse = (id) => Math.max(0, P(s, id).cash);
         const t = {
           id: rid(6), from: playerId, to: a.to, at: Date.now(),
           note: (a.note || '').slice(0, 120),
-          give: { cash: Math.min(me.cash, Math.max(0, a.give.cash | 0)), tiles: (a.give.tiles || []).filter(i => ownedBy(i, playerId)) },
-          want: { cash: Math.min(P(s, a.to).cash, Math.max(0, a.want.cash | 0)), tiles: (a.want.tiles || []).filter(i => ownedBy(i, a.to)) },
+          give: { cash: Math.min(purse(playerId), Math.max(0, a.give.cash | 0)), tiles: (a.give.tiles || []).filter(i => ownedBy(i, playerId)) },
+          want: { cash: Math.min(purse(a.to), Math.max(0, a.want.cash | 0)), tiles: (a.want.tiles || []).filter(i => ownedBy(i, a.to)) },
         };
         if (!t.give.cash && !t.want.cash && !t.give.tiles.length && !t.want.tiles.length) break;
         s.trades = s.trades.filter(x => !(x.from === playerId && x.to === a.to));  // one live offer per pair
@@ -1926,16 +2071,21 @@ const Engine = (() => {
         if (t.to !== playerId) break;
         if (a.accept) {
           const from = P(s, t.from), to = P(s, t.to);
+          /* Each side must cover what it is actually handing over — and a
+             player deep in debt is still allowed to be handed something,
+             which is the whole point of a teammate bailing you out. */
           const stillValid =
-            from.cash >= t.give.cash && to.cash >= t.want.cash &&
+            Math.max(0, from.cash) >= t.give.cash && Math.max(0, to.cash) >= t.want.cash &&
             t.give.tiles.every(i => s.owned[i] && s.owned[i].by === t.from && !s.owned[i].houses) &&
             t.want.tiles.every(i => s.owned[i] && s.owned[i].by === t.to && !s.owned[i].houses);
           if (!stillValid) {
             log(s, `A trade between ${tag(s, t.from)} and ${tag(s, t.to)} expired — the assets changed`);
             s.trades.splice(idx, 1); break;
           }
-          from.cash -= t.give.cash; to.cash += t.give.cash;
-          to.cash -= t.want.cash; from.cash += t.want.cash;
+          // an offer written before this rule existed cannot run backwards either
+          const gives = Math.max(0, t.give.cash), gets = Math.max(0, t.want.cash);
+          from.cash -= gives; to.cash += gives;
+          to.cash -= gets; from.cash += gets;
           t.give.tiles.forEach(i => { if (s.owned[i]) s.owned[i].by = t.to; });
           t.want.tiles.forEach(i => { if (s.owned[i]) s.owned[i].by = t.from; });
           log(s, `<b>${tag(s, t.to)} accepted the <span class="lref">trade</span> from ${tag(s, t.from)}</b>`,
@@ -1992,11 +2142,15 @@ const Engine = (() => {
         if (s.teams.length >= Math.floor(s.settings.maxPlayers)) break;
         const used = s.teams.map(t => t.emoji);
         const emoji = TEAM_EMOJI.find(e => !used.includes(e)) || '⭐';
+        /* The free colour, not the next one along. Counting teams handed the
+           same colour twice as soon as one was disbanded or left empty, and
+           two teams in the same blue is a board nobody can read. */
+        const worn = s.teams.map(t => t.color);
         const team = {
           id: rid(6),
           name: String(a.name || 'Team ' + (s.teams.length + 1)).slice(0, 16),
           emoji,
-          color: TEAM_COLORS[s.teams.length % TEAM_COLORS.length],
+          color: TEAM_COLORS.find(c => !worn.includes(c)) || TEAM_COLORS[s.teams.length % TEAM_COLORS.length],
           owner: playerId,          // the captain: the only one who can rename it
         };
         s.teams.push(team);
@@ -2033,6 +2187,8 @@ const Engine = (() => {
         if (team.owner !== playerId) break;
         if (a.name) team.name = String(a.name).slice(0, 16);
         if (a.emoji && TEAM_EMOJI.includes(a.emoji)) team.emoji = a.emoji;
+        if (a.color && TEAM_COLORS.includes(a.color)
+            && !s.teams.some(x => x.id !== team.id && x.color === a.color)) team.color = a.color;
         break;
       }
 
@@ -2256,996 +2412,15 @@ const Sfx = (() => {
 if (typeof module !== 'undefined') module.exports = { Sfx };
 </script>
 <script>/* ============================================================
-   MOGUL — 3D board (three.js)
+   MOGUL — the board (DOM)
 
-   The board is a real slab in a real scene with an orbiting camera.
-   The top face is a single generated canvas texture, which is how the
-   tile names stay crisp at any zoom without one mesh per tile.
-
-   Layout maths is kept pure and separate so it can be verified without
-   a GPU: every world position and every mouse pick goes through it.
+   Elements, not geometry: no WebGL, no texture atlas, readable on a weak
+   laptop and free on a phone. There used to be a three.js board beside
+   this one and a switch between them; nobody ever touched the switch, so
+   the geometry went and this is the board.
    ============================================================ */
 
-const Board3D = (() => {
-
-  /* ---------------- pure layout ----------------
-     The board spans [0,B] internally and is centred on the origin in
-     world space. PER_SIDE normal tiles per side plus two corners of 1.42x. */
-
-  const B = 20;
-  const CORNER = 1.42;
-  const U = B / (PER_SIDE + CORNER * 2);
-  const C = U * CORNER;
-  const THICK = 0.62;
-  const TOP = THICK / 2;
-  /* Label sharpness is texture density. 4096 doubles it against 2048 and
-     costs ~90 MB of VRAM, so weaker devices stay on the smaller sheet. */
-  const TEX = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency <= 4) ? 2048 : 4096;
-
-  /* Warm tabletop palette: a light mint board with dark print, the way a
-     physical board reads under a lamp. */
-  const PAL = {
-    room:    '#1d1611',
-    table:   '#77492a',
-    frame:   '#c19a6b',
-    felt:    '#bcdcd0',
-    tile:    '#eaf4ef',
-    dead:    '#b7c2bd',
-    line:    '#1b1f1e',
-    ink:     '#141a19',
-    price:   '#3a4442',
-    deckA:   '#e8a33d',
-    deckB:   '#5aa9e6',
-  };
-
-  /* Every tile is divided along its outward axis. The country band sits on
-     the outer edge and the owner bar on the inner edge, at opposite ends, so
-     an orange country can never blend into a red owner. */
-  const ZONE = { band: 0.18, owner: 0.14, pawn: 0.24 };
-
-  const Layout = {
-    B, U, C, THICK, TOP, ZONE,
-
-    /* a strip of a tile rect, measured from its outer or inner edge */
-    strip(sd, r, frac, from) {
-      const span = (sd === 't' || sd === 'b') ? r.d : r.w;
-      const t = span * frac;
-      const outer = from === 'outer';
-      if (sd === 't') return { x: r.x, z: outer ? r.z : r.z + r.d - t, w: r.w, d: t };
-      if (sd === 'b') return { x: r.x, z: outer ? r.z + r.d - t : r.z, w: r.w, d: t };
-      if (sd === 'l') return { x: outer ? r.x : r.x + r.w - t, z: r.z, w: t, d: r.d };
-      return { x: outer ? r.x + r.w - t : r.x, z: r.z, w: t, d: r.d };
-    },
-
-    /* what is left for the name once both edges are reserved */
-    content(sd, r) {
-      const span = (sd === 't' || sd === 'b') ? r.d : r.w;
-      const head = span * ZONE.band;
-      const tail = span * (ZONE.owner + ZONE.pawn);
-      if (sd === 't') return { x: r.x, z: r.z + head, w: r.w, d: r.d - head - tail };
-      if (sd === 'b') return { x: r.x, z: r.z + tail, w: r.w, d: r.d - head - tail };
-      if (sd === 'l') return { x: r.x + head, z: r.z, w: r.w - head - tail, d: r.d };
-      return { x: r.x + tail, z: r.z, w: r.w - head - tail, d: r.d };
-    },
-
-    rect(i) {
-      const [c0, c1, c2, c3] = CORNER_AT;
-      if (i === c0) return { x: 0,     z: 0,     w: C, d: C };
-      if (i < c1)   return { x: C + (i - c0 - 1) * U, z: 0,   w: U, d: C };
-      if (i === c1) return { x: B - C, z: 0,     w: C, d: C };
-      if (i < c2)   return { x: B - C, z: C + (i - c1 - 1) * U, w: C, d: U };
-      if (i === c2) return { x: B - C, z: B - C, w: C, d: C };
-      if (i < c3)   return { x: B - C - (i - c2) * U, z: B - C, w: U, d: C };
-      if (i === c3) return { x: 0,     z: B - C, w: C, d: C };
-      return              { x: 0,     z: B - C - (i - c3) * U, w: C, d: U };
-    },
-
-    /* world-space centre of a tile (y is added by the caller) */
-    center(i) {
-      const r = Layout.rect(i);
-      return { x: r.x + r.w / 2 - B / 2, z: r.z + r.d / 2 - B / 2 };
-    },
-
-    side(i) {
-      const [, c1, c2, c3] = CORNER_AT;
-      if (CORNER_AT.includes(i)) return 'corner';
-      if (i < c1) return 't';
-      if (i < c2) return 'r';
-      if (i < c3) return 'b';
-      return 'l';
-    },
-
-    /* unit vector pointing away from the board centre, along the tile's own side */
-    outward(i) {
-      const s = Layout.side(i);
-      if (s === 't') return { x: 0, z: -1 };
-      if (s === 'b') return { x: 0, z: 1 };
-      if (s === 'l') return { x: -1, z: 0 };
-      if (s === 'r') return { x: 1, z: 0 };
-      const c = Layout.center(i);
-      const m = Math.hypot(c.x, c.z) || 1;
-      return { x: c.x / m, z: c.z / m };
-    },
-
-    /* world point -> tile index, or -1 when the point is in the middle */
-    fromPoint(wx, wz) {
-      const x = wx + B / 2, z = wz + B / 2;
-      for (let i = 0; i < TILES; i++) {
-        const r = Layout.rect(i);
-        if (x >= r.x && x <= r.x + r.w && z >= r.z && z <= r.z + r.d) return i;
-      }
-      return -1;
-    },
-
-    /* The camera is fixed, so every label is printed upright rather than
-       radially: nothing is ever upside down for the player. */
-    textAngle() { return 0; },
-  };
-
-  /* ---------------- module state ---------------- */
-
-  let THREE = null, renderer, scene, camera, raf = null;
-  let boardMesh, pickPlane, topTexture, topCanvas;
-  let pawns = {}, buildingGroup, overlays = [], dice = [];
-  let container = null, loadError = null;
-  let flagImages = {};
-  const api = {};
-
-  /* The camera is locked. Free orbit meant labels could end up upside down
-     and the pick ray grazing the board at silly angles, so the view is a
-     single well-framed shot the whole game long. */
-  /* A narrow field of view seen from further back keeps the far row nearly
-     the same size as the near row, which a wide lens badly exaggerates. */
-  const VIEW = { az: Math.PI * 0.5, el: 0.86, fov: 21 };
-  const cam = { ...VIEW, dist: 29, zoom: 1, vFrac: 1 };
-  const SAFE_BOTTOM = 132;   // px kept clear under the board for the action bar
-
-  /* ---------------- texture ---------------- */
-
-  function loadFlags() {
-    const jobs = Object.entries(FLAGS).map(([code, svg]) => new Promise((res) => {
-      const img = new Image();
-      img.onload = () => { flagImages[code] = img; res(); };
-      img.onerror = () => res();
-      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-    }));
-    return Promise.all(jobs);
-  }
-
-  function drawTexture() {
-    const g = topCanvas.getContext('2d');
-    const s = TEX / B;
-    g.fillStyle = PAL.felt;
-    g.fillRect(0, 0, TEX, TEX);
-
-    for (let i = 0; i < TILES; i++) {
-      const t = BOARD[i], r = Layout.rect(i), o = S && S.owned ? S.owned[i] : null;
-      const sd = Layout.side(i);
-      const px = (q) => ({ x: q.x * s, y: q.z * s, w: q.w * s, h: q.d * s });
-      const box = px(r);
-      const mortgaged = !!(o && o.mortgaged);
-
-      // face
-      g.fillStyle = mortgaged ? PAL.dead : PAL.tile;
-      g.fillRect(box.x, box.y, box.w, box.h);
-      g.strokeStyle = PAL.line;
-      g.lineWidth = 2.5;
-      g.strokeRect(box.x + 1.25, box.y + 1.25, box.w - 2.5, box.h - 2.5);
-
-      // country band, outer edge
-      const band = GROUPS[t.group] ? GROUPS[t.group].color : null;
-      if (band && sd !== 'corner') {
-        const b = px(Layout.strip(sd, r, ZONE.band, 'outer'));
-        g.fillStyle = mortgaged ? mix(band, '#8d9691', 0.55) : band;
-        g.fillRect(b.x + 2, b.y + 2, b.w - 4, b.h - 4);
-        g.strokeStyle = PAL.line; g.lineWidth = 2;
-        g.strokeRect(b.x + 2, b.y + 2, b.w - 4, b.h - 4);
-      }
-
-      // owner bar, inner edge — never touches the country band
-      if (o && sd !== 'corner') {
-        const ob = px(Layout.strip(sd, r, ZONE.owner, 'inner'));
-        g.fillStyle = mortgaged ? '#8e2f2a' : Engine.colorOf(S, o.by);
-        g.fillRect(ob.x + 2, ob.y + 2, ob.w - 4, ob.h - 4);
-        g.strokeStyle = PAL.line; g.lineWidth = 2;
-        g.strokeRect(ob.x + 2, ob.y + 2, ob.w - 4, ob.h - 4);
-
-        if (mortgaged) {
-          g.save();
-          g.translate(ob.x + ob.w / 2, ob.y + ob.h / 2);
-          g.textAlign = 'center'; g.textBaseline = 'middle';
-          const room = (sd === 'l' || sd === 'r') ? ob.h : ob.w;
-          let fs = Math.min(ob.h * 0.62, room * 0.16);
-          g.font = `800 ${Math.round(fs)}px Nunito, sans-serif`;
-          g.fillStyle = '#ffe9e7';
-          g.fillText('MORTGAGED', 0, 0);
-          g.restore();
-        }
-      }
-
-      if (mortgaged) {
-        g.save();
-        g.beginPath(); g.rect(box.x + 2, box.y + 2, box.w - 4, box.h - 4); g.clip();
-        g.strokeStyle = 'rgba(120,60,50,.22)'; g.lineWidth = 10;
-        for (let k = -box.h; k < box.w + box.h; k += 34) line(g, box.x + k, box.y, box.x + k + box.h, box.y + box.h);
-        g.restore();
-      }
-
-      const c = px(Layout.content(sd, r));
-      drawTileFace(g, i, t, sd === 'corner' ? box.x : c.x, sd === 'corner' ? box.y : c.y,
-        sd === 'corner' ? box.w : c.w, sd === 'corner' ? box.h : c.h, mortgaged);
-    }
-
-    if (topTexture) topTexture.needsUpdate = true;
-  }
-
-  function line(g, x1, y1, x2, y2) {
-    g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
-  }
-
-  function mix(hexA, hexB, amt) {
-    const a = hexToRgb(hexA), b = hexToRgb(hexB);
-    return `rgb(${Math.round(a[0] + (b[0] - a[0]) * amt)},${Math.round(a[1] + (b[1] - a[1]) * amt)},${Math.round(a[2] + (b[2] - a[2]) * amt)})`;
-  }
-
-  /* Wrap to at most two lines, shrinking until it fits the tile. */
-  function wrapFit(g, text, maxW, maxPx, weight) {
-    for (let px = maxPx; px >= 9; px -= 1) {
-      g.font = `${weight || 700} ${px}px Nunito, "Segoe UI", system-ui, sans-serif`;
-      if (g.measureText(text).width <= maxW) return { px, lines: [text] };
-      const words = text.split(' ');
-      if (words.length > 1) {
-        for (let cut = 1; cut < words.length; cut++) {
-          const l1 = words.slice(0, cut).join(' '), l2 = words.slice(cut).join(' ');
-          if (g.measureText(l1).width <= maxW && g.measureText(l2).width <= maxW) {
-            return { px, lines: [l1, l2] };
-          }
-        }
-      }
-    }
-    g.font = `${weight || 700} 9px Nunito, sans-serif`;
-    return { px: 9, lines: [text] };
-  }
-
-  function drawTileFace(g, i, t, x, y, w, h, mortgaged) {
-    g.save();
-    g.translate(x + w / 2, y + h / 2);
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
-    g.fillStyle = mortgaged ? '#5d6a66' : PAL.ink;
-
-    const corner = { start: 'START', prison: 'IN PRISON', vacation: 'VACATION', gotoprison: 'GO TO PRISON' }[t.type];
-    if (corner) {
-      const icon = { start: '\u25B6\u25B6', prison: '\uD83D\uDD12', vacation: '\uD83C\uDFDD', gotoprison: '\u2620' }[t.type];
-      g.font = `800 ${Math.round(h * 0.24)}px Nunito, sans-serif`;
-      g.fillStyle = t.type === 'start' ? '#1f9d4e' : PAL.ink;
-      g.fillText(icon, 0, -h * 0.10);
-      const fit = wrapFit(g, corner, w * 0.88, Math.round(h * 0.15), 800);
-      g.fillStyle = PAL.ink;
-      fit.lines.forEach((ln, k) => g.fillText(ln, 0, h * 0.20 + k * fit.px * 1.05));
-      g.restore();
-      return;
-    }
-
-    const hasArt = t.type === 'property' ? !!flagImages[t.group] : true;
-    const nameTop = hasArt ? -h * 0.26 : -h * 0.06;
-    const fit = wrapFit(g, t.name, w * 0.94, Math.round(h * 0.20), 700);
-    fit.lines.forEach((ln, k) => g.fillText(ln, 0, nameTop + k * fit.px * 1.06));
-
-    if (t.type === 'property' && flagImages[t.group]) {
-      const d = Math.min(w, h) * 0.36;
-      g.save();
-      g.beginPath(); g.arc(0, h * 0.04, d / 2, 0, Math.PI * 2); g.clip();
-      g.drawImage(flagImages[t.group], -d / 2, h * 0.04 - d / 2, d, d);
-      g.restore();
-      g.strokeStyle = PAL.line; g.lineWidth = 2.5;
-      g.beginPath(); g.arc(0, h * 0.04, d / 2, 0, Math.PI * 2); g.stroke();
-    } else {
-      const icon = { airport: '\u2708', utility: { power: '\u26A1', gas: '\uD83D\uDD25', water: '\uD83D\uDEB0' }[t.icon] || '\u26A1',
-        tax: '\uD83D\uDCB5', surprise: '?', treasure: '\uD83E\uDDF0' }[t.type];
-      if (icon) {
-        g.font = `800 ${Math.round(h * 0.30)}px Nunito, sans-serif`;
-        g.fillStyle = t.type === 'surprise' ? '#d6336c' : PAL.ink;
-        g.fillText(icon, 0, h * 0.06);
-      }
-    }
-
-    const tag = t.price ? '$' + t.price
-      : (t.type === 'tax' ? (t.flat != null ? '$' + t.flat : t.percent + '%') : null);
-    if (tag) {
-      g.font = `800 ${Math.round(h * 0.17)}px Nunito, sans-serif`;
-      g.fillStyle = mortgaged ? '#7c8783' : PAL.price;
-      g.fillText(tag, 0, h * 0.36);
-    }
-    g.restore();
-  }
-
-  function hexToRgb(hex) {
-    const n = parseInt(hex.slice(1), 16);
-    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-  }
-
-  /* ---------------- scene ---------------- */
-
-  function buildScene(T) {
-    THREE = T;
-    scene = new T.Scene();
-    scene.background = new T.Color(PAL.room);
-    scene.fog = new T.Fog(PAL.room, 52, 108);
-
-    camera = new T.PerspectiveCamera(cam.fov, 1, 0.1, 300);
-
-    // table
-    const tableTex = woodTexture(T, ['#5e3a1f', '#7a4f2c'], 6);
-    tableTex.repeat.set(2.4, 2);
-    const table = new T.Mesh(
-      new T.BoxGeometry(46, 1.4, 40),
-      new T.MeshStandardMaterial({ map: tableTex, roughness: .68, metalness: .03 }));
-    table.position.y = -THICK / 2 - 0.7;
-    table.receiveShadow = true;
-    scene.add(table);
-
-    // board slab
-    topCanvas = document.createElement('canvas');
-    topCanvas.width = topCanvas.height = TEX;
-    topTexture = new T.CanvasTexture(topCanvas);
-    // grazing angles are exactly where mipmaps blur; max anisotropy fixes it
-    topTexture.anisotropy = renderer ? renderer.capabilities.getMaxAnisotropy() : 8;
-    topTexture.minFilter = T.LinearMipmapLinearFilter;
-    topTexture.magFilter = T.LinearFilter;
-    topTexture.colorSpace = T.SRGBColorSpace;
-
-    const frameTex = woodTexture(T, ['#a9763f', '#c79b62'], 0);
-    frameTex.repeat.set(3, 1);
-    const edge = new T.MeshStandardMaterial({ map: frameTex, roughness: .6 });
-    const top = new T.MeshStandardMaterial({ map: topTexture, roughness: .58 });
-    boardMesh = new T.Mesh(new T.BoxGeometry(B, THICK, B),
-      [edge, edge, top, edge, edge, edge]);
-    boardMesh.castShadow = true;
-    boardMesh.receiveShadow = true;
-    scene.add(boardMesh);
-
-    // invisible plane used for mouse picking, sitting exactly on the surface
-    pickPlane = new T.Mesh(new T.PlaneGeometry(B, B),
-      new T.MeshBasicMaterial({ visible: false }));
-    pickPlane.rotation.x = -Math.PI / 2;
-    pickPlane.position.y = TOP + 0.001;
-    scene.add(pickPlane);
-
-    // per-tile overlay quads for hover and focus, cheaper than repainting 4MP
-    overlays = [];
-    for (let i = 0; i < TILES; i++) {
-      const r = Layout.rect(i), c = Layout.center(i);
-      const m = new T.Mesh(new T.PlaneGeometry(r.w - 0.04, r.d - 0.04),
-        new T.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
-      m.rotation.x = -Math.PI / 2;
-      m.position.set(c.x, TOP + 0.012, c.z);
-      m.renderOrder = 2;
-      scene.add(m);
-      overlays.push(m);
-    }
-
-    buildingGroup = new T.Group();
-    scene.add(buildingGroup);
-
-    buildDice(T);
-    buildDecks(T);
-    lights(T);
-    return scene;
-  }
-
-  function lights(T) {
-    scene.add(new T.AmbientLight('#ffffff', 0.52));
-    scene.add(new T.HemisphereLight('#eaf2ff', '#5c3d26', 0.62));
-    const key = new T.DirectionalLight('#fff4e2', 1.55);
-    key.position.set(13, 27, 15);
-    key.castShadow = true;
-    key.shadow.mapSize.set(1024, 1024);
-    key.shadow.camera.left = -20; key.shadow.camera.right = 20;
-    key.shadow.camera.top = 20; key.shadow.camera.bottom = -20;
-    key.shadow.camera.far = 70;
-    key.shadow.bias = -0.0012;
-    scene.add(key);
-    const fill = new T.DirectionalLight('#cfe0ff', 0.34);
-    fill.position.set(-18, 14, -12);
-    scene.add(fill);
-  }
-
-  /* Procedural wood: banded grain with drifting waves, plank seams and a few
-     knots. Cheaper than shipping an image and it tiles without a visible seam. */
-  function woodTexture(T, tint, planks) {
-    const N = 1024;
-    const cv = document.createElement('canvas');
-    cv.width = cv.height = N;
-    const g = cv.getContext('2d');
-
-    const base = g.createLinearGradient(0, 0, 0, N);
-    base.addColorStop(0, tint[0]);
-    base.addColorStop(0.5, tint[1]);
-    base.addColorStop(1, tint[0]);
-    g.fillStyle = base;
-    g.fillRect(0, 0, N, N);
-
-    // long grain lines
-    for (let i = 0; i < 520; i++) {
-      const y0 = Math.random() * N;
-      const amp = 3 + Math.random() * 16;
-      const freq = 1.2 + Math.random() * 2.4;
-      const phase = Math.random() * Math.PI * 2;
-      const dark = Math.random() < 0.62;
-      g.strokeStyle = dark
-        ? `rgba(48,27,12,${0.04 + Math.random() * 0.15})`
-        : `rgba(214,166,113,${0.03 + Math.random() * 0.09})`;
-      g.lineWidth = 0.5 + Math.random() * 2.4;
-      g.beginPath();
-      for (let x = 0; x <= N; x += 12) {
-        const t = x / N;
-        const y = y0 + Math.sin(t * Math.PI * 2 * freq + phase) * amp
-                     + Math.sin(t * Math.PI * 2 * freq * 3.7 + phase) * amp * 0.28;
-        if (x === 0) g.moveTo(x, y); else g.lineTo(x, y);
-      }
-      g.stroke();
-    }
-
-    // knots
-    for (let k = 0; k < 5; k++) {
-      const cx = Math.random() * N, cy = Math.random() * N;
-      const rings = 5 + Math.floor(Math.random() * 5);
-      for (let r = rings; r > 0; r--) {
-        g.strokeStyle = `rgba(52,30,14,${0.05 + (rings - r) * 0.02})`;
-        g.lineWidth = 1.4;
-        g.beginPath();
-        g.ellipse(cx, cy, r * 4.5, r * 2.6, Math.random() * 0.4, 0, Math.PI * 2);
-        g.stroke();
-      }
-    }
-
-    // plank seams
-    if (planks) {
-      const step = N / planks;
-      for (let k = 1; k < planks; k++) {
-        g.strokeStyle = 'rgba(30,17,7,.5)';
-        g.lineWidth = 3;
-        g.beginPath(); g.moveTo(0, k * step); g.lineTo(N, k * step); g.stroke();
-        g.strokeStyle = 'rgba(225,182,132,.16)';
-        g.lineWidth = 1.6;
-        g.beginPath(); g.moveTo(0, k * step + 3); g.lineTo(N, k * step + 3); g.stroke();
-      }
-    }
-
-    const tex = new T.CanvasTexture(cv);
-    tex.colorSpace = T.SRGBColorSpace;
-    tex.wrapS = tex.wrapT = T.RepeatWrapping;
-    return tex;
-  }
-
-  function pipTexture(n) {
-    const cv = document.createElement('canvas');
-    cv.width = cv.height = 128;
-    const g = cv.getContext('2d');
-    g.fillStyle = '#fbfbfd'; g.fillRect(0, 0, 128, 128);
-    g.fillStyle = '#1b1f1e';
-    const P = { 1: [[64, 64]], 2: [[36, 36], [92, 92]], 3: [[32, 32], [64, 64], [96, 96]],
-      4: [[36, 36], [92, 36], [36, 92], [92, 92]],
-      5: [[34, 34], [94, 34], [64, 64], [34, 94], [94, 94]],
-      6: [[36, 30], [92, 30], [36, 64], [92, 64], [36, 98], [92, 98]] }[n];
-    P.forEach(([x, y]) => { g.beginPath(); g.arc(x, y, 13, 0, Math.PI * 2); g.fill(); });
-    return cv;
-  }
-
-  /* face order for BoxGeometry is +x -x +y -y +z -z */
-  const DIE_FACES = [1, 6, 2, 5, 3, 4];
-  const DIE_UP = {                       // rotation that brings a value face-up
-    1: [0, 0, Math.PI / 2], 6: [0, 0, -Math.PI / 2],
-    2: [0, 0, 0],           5: [Math.PI, 0, 0],
-    3: [-Math.PI / 2, 0, 0], 4: [Math.PI / 2, 0, 0],
-  };
-
-  function buildDice(T) {
-    dice = [0, 1].map(k => {
-      const mats = DIE_FACES.map(n => {
-        const tex = new T.CanvasTexture(pipTexture(n));
-        tex.colorSpace = T.SRGBColorSpace;
-        return new T.MeshStandardMaterial({ map: tex, roughness: .35 });
-      });
-      const m = new T.Mesh(new T.BoxGeometry(1.15, 1.15, 1.15), mats);
-      m.castShadow = true;
-      m.visible = false;                 // nothing on the felt before the first throw
-      m.position.set(k === 0 ? -1.2 : 1.2, TOP + 0.6, 0);
-      scene.add(m);
-      return m;
-    });
-  }
-
-  function buildDecks(T) {
-    const mk = (color, x, z, rot) => {
-      const paper = new T.MeshStandardMaterial({ color: '#f4f6f4', roughness: .8 });
-      const face = new T.MeshStandardMaterial({ color, roughness: .55 });
-      const m = new T.Mesh(new T.BoxGeometry(3.1, 0.42, 2.2),
-        [paper, paper, face, paper, paper, paper]);
-      m.position.set(x, TOP + 0.21, z);
-      m.rotation.y = rot;
-      m.castShadow = true;
-      scene.add(m);
-    };
-    mk(PAL.deckA, -4.4, -3.2, 0.30);   // surprise
-    mk(PAL.deckB, 4.4, 3.2, -0.36);    // treasure
-  }
-
-  /* ---------------- pieces ---------------- */
-
-  /* Pieces are deliberately squat: a tall pawn seen from 49 degrees paints
-     itself over the tile behind it, which is where the property name lives.
-     Each silhouette is real geometry so it reads from any distance.        */
-
-  function eyes(T, g, y, z, r) {
-    const white = new T.MeshStandardMaterial({ color: '#ffffff', roughness: .28 });
-    const black = new T.MeshStandardMaterial({ color: '#15151d', roughness: .28 });
-    [-0.13, 0.13].forEach(dx => {
-      const e = new T.Mesh(new T.SphereGeometry(r, 14, 12), white);
-      e.position.set(dx, y, z);
-      g.add(e);
-      const p = new T.Mesh(new T.SphereGeometry(r * 0.45, 10, 8), black);
-      p.position.set(dx, y, z + r * 0.72);
-      g.add(p);
-    });
-  }
-
-  /* half-profile revolved around Y, used for the pointier silhouettes */
-  function lathe(T, pts, mat, segments) {
-    const v = pts.map(([x, y]) => new T.Vector2(x, y));
-    const m = new T.Mesh(new T.LatheGeometry(v, segments || 24), mat);
-    m.castShadow = true;
-    return m;
-  }
-
-  function pawnMesh(T, color, shape) {
-    const g = new T.Group();
-    const mat = new T.MeshStandardMaterial({ color, roughness: .34, metalness: .04 });
-    const leaf = new T.MeshStandardMaterial({ color: '#4f9b3a', roughness: .5 });
-    let eyeY = 0.40, eyeZ = 0.20, eyeR = 0.115, bodyRef = null;
-
-    if (shape === 'lemon') {
-      const body = lathe(T, [[0, 0], [0.20, 0.03], [0.33, 0.16], [0.36, 0.32],
-        [0.30, 0.48], [0.16, 0.58], [0, 0.62]], mat, 26);
-      g.add(body);
-      const tip = new T.Mesh(new T.ConeGeometry(0.07, 0.10, 10), leaf);
-      tip.position.y = 0.66;
-      g.add(tip);
-      bodyRef = body; eyeY = 0.36; eyeZ = 0.27; eyeR = 0.10;
-
-    } else if (shape === 'berry') {
-      const body = lathe(T, [[0, 0], [0.13, 0.02], [0.28, 0.14], [0.36, 0.32],
-        [0.32, 0.46], [0.18, 0.53], [0, 0.55]], mat, 26);
-      g.add(body);
-      const cap = new T.Mesh(new T.ConeGeometry(0.30, 0.12, 12), leaf);
-      cap.position.y = 0.58;
-      cap.rotation.y = Math.PI / 12;
-      g.add(cap);
-      bodyRef = body; eyeY = 0.32; eyeZ = 0.27; eyeR = 0.10;
-
-    } else if (shape === 'flame') {
-      const body = lathe(T, [[0, 0], [0.22, 0.05], [0.34, 0.20], [0.32, 0.40],
-        [0.20, 0.58], [0.08, 0.70], [0, 0.76]], mat, 26);
-      g.add(body);
-      const inner = new T.Mesh(new T.SphereGeometry(0.16, 16, 12),
-        new T.MeshStandardMaterial({ color: '#ffe08a', roughness: .3, emissive: '#7a4a00', emissiveIntensity: .35 }));
-      inner.scale.set(1, 1.5, 1);
-      inner.position.y = 0.22;
-      g.add(inner);
-      bodyRef = body; eyeY = 0.34; eyeZ = 0.25; eyeR = 0.095;
-
-    } else if (shape === 'swirl') {
-      const tiers = [[0.38, 0.09, 0.09], [0.29, 0.21, 0.075], [0.20, 0.32, 0.06]];
-      tiers.forEach(([r, y, h]) => {
-        const m = new T.Mesh(new T.SphereGeometry(r, 20, 14), mat);
-        m.scale.set(1, 0.62, 1);
-        m.position.y = y;
-        m.castShadow = true;
-        g.add(m);
-        bodyRef = bodyRef || m;
-      });
-      const tip = new T.Mesh(new T.ConeGeometry(0.10, 0.14, 12), mat);
-      tip.position.y = 0.44;
-      g.add(tip);
-      eyeY = 0.24; eyeZ = 0.26; eyeR = 0.10;
-
-    } else {
-      const base = new T.Mesh(new T.CylinderGeometry(0.36, 0.40, 0.16, 24), mat);
-      base.position.y = 0.08;
-      base.castShadow = true;
-      g.add(base);
-      const dome = new T.Mesh(new T.SphereGeometry(0.36, 26, 18), mat);
-      dome.scale.set(1, 0.78, 1);
-      dome.position.y = 0.20;
-      dome.castShadow = true;
-      g.add(dome);
-      bodyRef = dome;
-    }
-
-    eyes(T, g, eyeY, eyeZ, eyeR);
-
-    // Sit every silhouette exactly on the surface: the shapes have different
-    // profiles, so measure rather than hand-tune each one.
-    const box = new T.Box3().setFromObject(g);
-    if (box.min.y < 0) g.children.forEach(c => { c.position.y -= box.min.y; });
-
-    g.userData.body = bodyRef;
-    g.userData.baseY = bodyRef ? bodyRef.position.y : 0.2;
-    g.userData.shape = shape || 'blob';
-    return g;
-  }
-
-  function syncPawns() {
-    if (!scene) return;
-    const alive = {};
-    S.players.forEach(p => {
-      if (p.bankrupt) return;
-      alive[p.id] = true;
-      const want = p.shape || 'blob';
-      const tint = Engine.colorOf(S, p.id);
-      if (pawns[p.id] && pawns[p.id].userData.look !== want + tint) {
-        scene.remove(pawns[p.id]);
-        delete pawns[p.id];
-      }
-      if (!pawns[p.id]) {
-        pawns[p.id] = pawnMesh(THREE, tint, want);
-        pawns[p.id].userData.look = want + tint;
-        scene.add(pawns[p.id]);
-        pawns[p.id].userData.tile = p.pos;
-      }
-    });
-    Object.keys(pawns).forEach(id => {
-      if (!alive[id]) { scene.remove(pawns[id]); delete pawns[id]; }
-    });
-    Object.entries(pawns).forEach(([id, g]) => {
-      if (g.userData.walking) return;
-      const p = Engine.P(S, id);
-      const spot = pawnSpot(p.pos, id);
-      g.position.set(spot.x, TOP, spot.z);
-    });
-  }
-
-  /* spread co-located pawns so they never overlap */
-  function pawnSpot(tile, playerId) {
-    const here = S.players.filter(p => !p.bankrupt && p.pos === tile).map(p => p.id);
-    const k = Math.max(0, here.indexOf(playerId));
-    const n = Math.max(1, here.length);
-    const c = Layout.center(tile), out = Layout.outward(tile);
-    const cols = Math.ceil(Math.sqrt(n));
-    const row = Math.floor(k / cols), col = k % cols;
-    const spread = 0.38;
-    const ax = out.z, az = -out.x;                 // along the tile
-    const dx = (col - (Math.min(n, cols) - 1) / 2) * spread;
-    const dz = (row - (Math.ceil(n / cols) - 1) / 2) * spread * 0.7;
-    const inward = C * (ZONE.owner + ZONE.pawn / 2);  // park on the reserved strip
-    return {
-      x: c.x - out.x * inward + ax * dx - out.x * dz,
-      z: c.z - out.z * inward + az * dx - out.z * dz,
-    };
-  }
-
-  function syncBuildings() {
-    if (!buildingGroup) return;
-    while (buildingGroup.children.length) buildingGroup.remove(buildingGroup.children[0]);
-    const T = THREE;
-    for (const key in S.owned) {
-      const i = +key, o = S.owned[i];
-      if (!o.houses) continue;
-      const c = Layout.center(i), out = Layout.outward(i);
-      const ax = out.z, az = -out.x;
-      const hotel = o.houses === 5;
-      const n = hotel ? 1 : o.houses;
-      for (let k = 0; k < n; k++) {
-        const geo = hotel ? new T.BoxGeometry(0.78, 0.34, 0.44) : new T.BoxGeometry(0.30, 0.30, 0.30);
-        const m = new T.Mesh(geo, new T.MeshStandardMaterial({
-          color: hotel ? '#e0454e' : '#3fca7d', roughness: .45,
-        }));
-        const off = (k - (n - 1) / 2) * 0.36;
-        m.position.set(
-          c.x + out.x * U * 0.30 + ax * off,
-          TOP + (hotel ? 0.17 : 0.15),
-          c.z + out.z * U * 0.30 + az * off);
-        m.castShadow = true;
-        buildingGroup.add(m);
-      }
-    }
-  }
-
-  /* ---------------- animation ---------------- */
-
-  const tweens = [];
-  function tween(ms, onStep, onDone) {
-    const t0 = performance.now();
-    tweens.push({ t0, ms, onStep, onDone });
-  }
-  function stepTweens(now) {
-    for (let k = tweens.length - 1; k >= 0; k--) {
-      const t = tweens[k];
-      const p = Math.min(1, (now - t.t0) / t.ms);
-      t.onStep(p);
-      if (p >= 1) { tweens.splice(k, 1); if (t.onDone) t.onDone(); }
-    }
-  }
-
-  api.walk = function (playerId, from, to, back) {
-    const g = pawns[playerId];
-    if (!g) return;
-    const path = [];
-    let cur = from;
-    const dir = back ? -1 : 1;
-    let guard = 0;
-    while (cur !== to && guard++ < TILES + 5) { cur = ((cur + dir) % TILES + TILES) % TILES; path.push(cur); }
-    if (!path.length) return;
-    g.userData.walking = true;
-    let step = 0;
-    const hop = () => {
-      if (step >= path.length) {
-        g.userData.walking = false;
-        syncPawns();
-        return;
-      }
-      const startSpot = { x: g.position.x, z: g.position.z };
-      const endSpot = pawnSpot(path[step], playerId);
-      tween(150, (p) => {
-        g.position.x = startSpot.x + (endSpot.x - startSpot.x) * p;
-        g.position.z = startSpot.z + (endSpot.z - startSpot.z) * p;
-        g.position.y = TOP + Math.sin(p * Math.PI) * 0.55;
-      }, () => { step++; hop(); });
-    };
-    hop();
-  };
-
-  /* Where the dice come to rest for a given pair — no throw, no animation.
-     A browser that did not press the button still has to show the numbers
-     the game actually rolled. */
-  let diceBusy = 0;
-  function setDice(d1, d2) {
-    if (!dice.length) return;
-    const rolled = d1 > 0 && d2 > 0;
-    dice.forEach((m, k) => {
-      m.visible = rolled;
-      if (!rolled) return;
-      const t = DIE_UP[k === 0 ? d1 : d2] || [0, 0, 0];
-      m.rotation.set(t[0], t[1], t[2]);
-      m.position.set(k === 0 ? -1.5 : 1.5, TOP + 0.6, 0);
-    });
-  }
-
-  api.roll = function (d1, d2) {
-    if (!dice.length) return;
-    dice.forEach(m => { m.visible = true; });
-    diceBusy += 2;
-    [d1, d2].forEach((v, k) => {
-      const m = dice[k];
-      // whole turns, so the tumble lands exactly on the face it snaps to
-      const spinX = 2 * Math.PI * (2 + Math.floor(Math.random() * 2));
-      const spinZ = 2 * Math.PI * (2 + Math.floor(Math.random() * 2));
-      const target = DIE_UP[v] || [0, 0, 0];
-      const from = { x: m.rotation.x, y: m.rotation.y, z: m.rotation.z };
-      const baseX = k === 0 ? -1.5 : 1.5;
-      tween(760, (p) => {
-        const e = 1 - Math.pow(1 - p, 3);
-        m.rotation.x = from.x + (target[0] + spinX - from.x) * e;
-        m.rotation.y = from.y + (target[1] - from.y) * e;
-        m.rotation.z = from.z + (target[2] + spinZ - from.z) * e;
-        m.position.y = TOP + 0.6 + Math.sin(p * Math.PI) * 2.6;
-        m.position.x = baseX + (1 - e) * (k === 0 ? -2 : 2);
-      }, () => {
-        m.rotation.set(target[0], target[1], target[2]);
-        m.position.set(baseX, TOP + 0.6, 0);
-        diceBusy = Math.max(0, diceBusy - 1);
-      });
-    });
-  };
-
-  /* ---------------- focus / highlight ---------------- */
-
-  let focusP = null, focusG = null;
-  api.focus = function (playerId, group) {
-    focusP = playerId; focusG = group;
-    if (!overlays.length) return;
-    const on = !!(playerId || group);
-    for (let i = 0; i < TILES; i++) {
-      const m = overlays[i], t = BOARD[i], o = S.owned[i];
-      let hit = false;
-      if (playerId && o && o.by === playerId) hit = true;
-      if (group && t.group === group) hit = true;
-      if (!on) { m.material.opacity = 0; continue; }
-      if (hit) {
-        m.material.color.set(playerId ? Engine.colorOf(S, playerId) : (GROUPS[group] ? GROUPS[group].color : '#ffffff'));
-        m.material.opacity = 0.34;
-        continue;
-      }
-      // Shading the rest only makes sense when picking one player's holdings
-      // out of the whole board; for a country the highlight alone is enough.
-      if (playerId) { m.material.color.set('#000000'); m.material.opacity = 0.62; }
-      else m.material.opacity = 0;
-    }
-  };
-
-  let hoverTile = -1;
-  function setHover(i) {
-    if (i === hoverTile) return;
-    hoverTile = i;
-    if (!focusP && !focusG && overlays.length) {
-      overlays.forEach((m, k) => {
-        m.material.color.set('#ffffff');
-        m.material.opacity = k === i ? 0.16 : 0;
-      });
-    }
-    if (api.onHover) api.onHover(i);
-  }
-
-  /* ---------------- camera + input ---------------- */
-
-  /* Distance is derived from the viewport shape so the whole board is always
-     in frame, on a wide monitor and on a phone alike. */
-  function frameCamera() {
-    if (!camera) return;
-    const half = Math.tan((cam.fov * Math.PI / 180) / 2);
-    const boardW = B * 1.06;
-    const boardH = B * Math.sin(cam.el) + THICK * 2;
-    // only part of the frustum is actually painted once the bar is reserved
-    const needV = (boardH / 2) / (half * cam.vFrac);
-    const needH = (boardW / 2) / (half * Math.max(0.35, camera.aspect));
-    cam.dist = Math.max(needV, needH) * 1.1 * cam.zoom;
-    applyCamera();
-  }
-
-  function applyCamera() {
-    const { az, el, dist } = cam;
-    camera.position.set(
-      Math.cos(az) * Math.cos(el) * dist,
-      Math.sin(el) * dist,
-      Math.sin(az) * Math.cos(el) * dist);
-    camera.lookAt(0, 0, 0);
-  }
-
-  api.resetView = function () { cam.zoom = 1; frameCamera(); };
-
-  function bindInput(dom) {
-    dom.addEventListener('pointermove', pick);
-    dom.addEventListener('pointerleave', () => setHover(-1));
-    dom.addEventListener('click', () => {
-      if (hoverTile >= 0 && api.onClick) api.onClick(hoverTile);
-    });
-    // a small zoom range only — never enough to break the framing
-    dom.addEventListener('wheel', (e) => {
-      e.preventDefault();
-      cam.zoom = Math.max(0.82, Math.min(1.2, cam.zoom + Math.sign(e.deltaY) * 0.05));
-      frameCamera();
-    }, { passive: false });
-  }
-
-  let ray = null, ndc = null;
-  function pick(e) {
-    if (!ray) { ray = new THREE.Raycaster(); ndc = new THREE.Vector2(); }
-    const r = renderer.domElement.getBoundingClientRect();
-    ndc.x = ((e.clientX - r.left) / r.width) * 2 - 1;
-    ndc.y = -((e.clientY - r.top) / r.height) * 2 + 1;
-    ray.setFromCamera(ndc, camera);
-    const hit = ray.intersectObject(pickPlane, false)[0];
-    if (!hit) return setHover(-1);
-    setHover(Layout.fromPoint(hit.point.x, hit.point.z));
-    api.lastPointer = { x: e.clientX, y: e.clientY };
-  }
-
-  /* ---------------- lifecycle ---------------- */
-
-  api.Layout = Layout;
-  // exposed for headless verification of the scene graph
-  api._build = buildScene;
-  api._pawn = pawnMesh;
-  api._shapes = () => SHAPES;
-  api._paint = drawTexture;
-  api._sync = () => { syncPawns(); syncBuildings(); };
-  api._pawns = () => pawns;
-  api._overlays = () => overlays;
-  api._spot = pawnSpot;
-  api.ready = false;
-  api.error = () => loadError;
-
-  api.mount = async function (host) {
-    if (api.ready) return true;
-    container = host;
-    try {
-      const T = await import('https://unpkg.com/three@0.185.1/build/three.module.js');
-      await loadFlags();
-      renderer = new T.WebGLRenderer({ antialias: true, alpha: false });
-      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
-      renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = T.PCFShadowMap;   // three 0.185 deprecated the soft variant and silently uses this one
-      renderer.toneMapping = T.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.18;
-      host.appendChild(renderer.domElement);
-      renderer.domElement.style.cssText = 'width:100%;height:100%;display:block;border-radius:16px;touch-action:none;cursor:default';
-
-      buildScene(T);
-      drawTexture();
-      syncPawns();
-      syncBuildings();
-      frameCamera();
-      bindInput(renderer.domElement);
-      resize();
-      window.addEventListener('resize', resize);
-
-      const loop = (now) => {
-        raf = requestAnimationFrame(loop);
-        stepTweens(now);
-        // gentle bob on the active player's pawn
-        const cur = Engine.current(S);
-        Object.entries(pawns).forEach(([id, g]) => {
-          const isCur = cur && cur.id === id && S.phase === 'playing';
-          const b = g.userData.body;
-          if (b) b.position.y = g.userData.baseY + (isCur && !g.userData.walking ? Math.sin(now / 280) * 0.07 + 0.07 : 0);
-        });
-        renderer.render(scene, camera);
-      };
-      raf = requestAnimationFrame(loop);
-      api.ready = true;
-      return true;
-    } catch (e) {
-      loadError = e.message || String(e);
-      return false;
-    }
-  };
-
-  function resize() {
-    if (!renderer || !container) return;
-    const w = container.clientWidth || 800, h = container.clientHeight || 600;
-    renderer.setSize(w, h, false);
-    // Render the lower slice of a taller frustum: the board lifts off the
-    // bottom of the screen instead of sliding under the action bar.
-    const pad = Math.min(SAFE_BOTTOM, h * 0.3);
-    const fullH = h + pad;
-    cam.vFrac = h / fullH;
-    camera.aspect = w / fullH;
-    camera.setViewOffset(w, fullH, 0, pad, w, h);
-    camera.updateProjectionMatrix();
-    frameCamera();
-  }
-  api.resize = resize;
-
-  api.repaint = function () { if (api.ready) drawTexture(); };
-
-  let ownedSig = null;
-  api.update = function () {
-    if (!api.ready) return;
-    // the top texture is 4 megapixels, so only repaint it when a deed changed
-    const sig = JSON.stringify(S.owned);
-    if (sig !== ownedSig) { ownedSig = sig; drawTexture(); }
-    // never leave the cubes on a number the game has moved past
-    if (!diceBusy) setDice(S.dice[0], S.dice[1]);
-    syncPawns();
-    syncBuildings();
-    api.focus(focusP, focusG);
-  };
-  api.unmount = function () {
-    if (raf) cancelAnimationFrame(raf);
-    raf = null;
-    window.removeEventListener('resize', resize);
-    if (renderer) { renderer.dispose(); if (renderer.domElement.parentNode) renderer.domElement.remove(); }
-    api.ready = false;
-    tweens.length = 0;
-    pawns = {}; overlays = []; dice = []; scene = null; diceBusy = 0;
-  };
-
-  return api;
-})();
-
-if (typeof module !== 'undefined') module.exports = { Board3D };
-</script>
-<script>/* ============================================================
-   MOGUL — flat board (DOM)
-
-   The same board drawn as elements instead of geometry: no WebGL, no
-   texture atlas, readable on a weak laptop. It answers the exact same
-   calls as Board3D — mount, update, walk, roll, focus — so the game
-   never learns which one it is talking to, and only one is ever mounted.
-   ============================================================ */
-
-const Board2D = (() => {
+const Board = (() => {
 
   const api = { ready: false, lastPointer: { x: 0, y: 0 }, onHover: null, onClick: null };
 
@@ -3272,7 +2447,17 @@ const Board2D = (() => {
   }
   api.cell = cell;
 
-  const sideOf = (i) => Board3D.Layout.side(i);
+  /* Which edge of the ring a tile sits on. Pure index maths — it used to
+     live in the 3D module's layout half, which was the only thing this
+     board ever borrowed from it. */
+  function sideOf(i) {
+    const [, c1, c2, c3] = CORNER_AT;
+    if (CORNER_AT.includes(i)) return 'corner';
+    if (i < c1) return 't';
+    if (i < c2) return 'r';
+    if (i < c3) return 'b';
+    return 'l';
+  }
 
   /* ---------------- one tile ---------------- */
 
@@ -3283,36 +2468,42 @@ const Board2D = (() => {
     node.style.gridArea = r + ' / ' + c;
     node.dataset.i = i;
 
-    if (t.group && GROUPS[t.group]) {
-      node.style.setProperty('--gc', GROUPS[t.group].color);
-      node.appendChild(el('div', 'band'));
-    }
+    if (t.group && GROUPS[t.group]) node.style.setProperty('--gc', GROUPS[t.group].color);
+    /* the flag twice over: once blurred into the card as the tile's colour,
+       once crisp on the emblem — see .t-art */
+    if (t.type === 'property' && FLAGS[t.group]) node.appendChild(el('div', 't-art', FLAGS[t.group]));
+
+    const accent = TILE_ACCENT[t.type === 'utility' ? t.icon : t.type];
+    if (accent) node.style.setProperty('--ac', accent);
+
     node.appendChild(el('div', 'strip'));
+
+    node.classList.add('t-' + t.type);
 
     const body = el('div', 'tile-body');
     if (sd === 'corner') {
-      const icon = { start: '▶▶', prison: '🔒', vacation: '🏝', gotoprison: '☠' }[t.type];
-      const ic = el('div', 't-icon', icon || '');
-      if (t.type === 'start') ic.style.color = '#5ed17f';
-      body.append(ic, el('div', 't-name', esc(t.name)));
+      body.append(el('div', 't-icon', ICONS[t.type] || ''), el('div', 't-name', esc(t.name)));
+      if (t.type === 'vacation') body.appendChild(el('div', 't-pot'));
     } else {
-      body.appendChild(el('div', 't-name', esc(t.name)));
-      if (t.type === 'property' && FLAGS[t.group]) {
-        const f = el('div', 't-flag');
-        f.innerHTML = FLAGS[t.group];
-        body.appendChild(f);
-      } else {
-        const icon = { airport: '✈', utility: { power: '⚡', gas: '🔥', water: '🚰' }[t.icon] || '⚡',
-                       tax: '💵', surprise: '?', treasure: '🧰' }[t.type];
-        if (icon) {
-          const ic = el('div', 't-icon', icon);
-          if (t.type === 'surprise') ic.style.color = '#f472b6';
-          body.appendChild(ic);
-        }
-      }
+      /* Outer edge first, inner edge last: the price, the name, then the
+         emblem. Both edge slots are always there even when empty, so every
+         tile on a side lines its name up with its neighbours. */
       const tag = t.price ? '$' + t.price
         : (t.type === 'tax' ? (t.flat != null ? '$' + t.flat : t.percent + '%') : '');
-      if (tag) body.appendChild(el('div', 't-price', tag));
+      body.appendChild(el('div', 't-price', tag));
+      body.appendChild(el('div', 't-name', esc(t.name)));
+
+      const emblem = el('div', 't-emblem');
+      if (t.type === 'property' && FLAGS[t.group]) {
+        emblem.appendChild(el('div', 't-flag', FLAGS[t.group]));
+      } else if (t.type === 'surprise') {
+        /* the one mark that is better as type than as a drawing */
+        emblem.appendChild(el('div', 't-icon glyph', '?'));
+      } else {
+        const icon = ICONS[t.type === 'utility' ? t.icon : t.type];
+        if (icon) emblem.appendChild(el('div', 't-icon', icon));
+      }
+      body.appendChild(emblem);
     }
     node.appendChild(body);
     node.appendChild(el('div', 'houses'));
@@ -3327,10 +2518,11 @@ const Board2D = (() => {
     return node;
   }
 
+  /* No repaint here any more: hovering is :hover's business, and calling
+     syncTiles was what dragged the focus highlight onto a passing mouse. */
   function setHover(i) {
     if (i === hoverTile) return;
     hoverTile = i;
-    if (api.ready) syncTiles();
     if (api.onHover) api.onHover(i);
   }
 
@@ -3459,8 +2651,12 @@ const Board2D = (() => {
         if (!label) { label = el('div', 'mortlabel', 'MORTGAGED'); node.appendChild(label); }
       } else if (label) label.remove();
 
+      const pot = node.querySelector('.t-pot');
+      if (pot) pot.textContent = S.settings.vacationCash && S.vacationPot > 0 ? '$' + S.vacationPot : '';
+
       const houses = node.querySelector('.houses');
       const want = o && !o.mortgaged ? o.houses : 0;
+      node.classList.toggle('built', want > 0);
       if (Number(houses.dataset.n || 0) !== want) {
         houses.dataset.n = want;
         houses.innerHTML = '';
@@ -3470,7 +2666,7 @@ const Board2D = (() => {
 
       // light up what matters; shade the rest only when following one player
       const hit = (focusP && o && o.by === focusP) || (focusG && t.group === focusG);
-      node.classList.toggle('hl', !!hit || (!focusP && !focusG && i === hoverTile));
+      node.classList.toggle('hl', !!hit);
       node.classList.toggle('dim', !!focusP && !hit);
       if (hit) node.style.setProperty('--own', focusP ? Engine.colorOf(S, focusP) : GROUPS[focusG].color);
     }
@@ -3573,7 +2769,6 @@ const Board2D = (() => {
   };
 
   api.repaint = api.update;
-  api.resetView = function () {};
 
   api.roll = function (d1, d2) {
     if (!api.ready) return;
@@ -3633,15 +2828,6 @@ let MY_ID = null;        // which seat this browser controls
 let LOCAL_ALL = true;    // hot-seat: this browser plays every human seat
 let net = null;          // set by net.js when online
 
-/* Two renderers, one at a time. Board3D is geometry, Board2D is elements,
-   and both answer the same calls; VIEW says which one is mounted. Nothing
-   below ever names a renderer directly — that is what kept the old DOM
-   fallback fighting the 3D board over hover and animation. */
-/* The flat board is what you get unless you have asked for the other one:
-   it reads at a glance, needs no WebGL, and costs nothing on a phone. */
-let VIEW = localStorage.getItem('mogul.view') === '3d' ? '3d' : '2d';
-let Board = VIEW === '2d' ? Board2D : Board3D;
-
 function bindBoard(b) {
   b.onHover = (i) => {
     if (i < 0) return hidePeek();
@@ -3649,21 +2835,6 @@ function bindBoard(b) {
     showPeekAt(i, p ? p.x : 0, p ? p.y : 0);
   };
   b.onClick = (i) => { if (BOARD[i] && BOARD[i].price) focusProperty(i); };
-}
-
-/* Switching view unmounts the other board first, so hover, highlight and
-   walk animations only ever have one owner. */
-async function setView(mode) {
-  if (mode === VIEW) return;
-  const other = Board;
-  VIEW = mode;
-  localStorage.setItem('mogul.view', mode);
-  Board = mode === '2d' ? Board2D : Board3D;
-  if (other && other.ready) other.unmount();
-  const ok = await applyView();
-  if (!ok) return;
-  if (S.phase !== 'lobby') render(); else renderLobby();
-  renderHUD();
 }
 
 let walkSeq = -1;
@@ -3757,7 +2928,9 @@ function deedCardHTML(i) {
       return `<tr${n === k + 1 ? ' class="hl"' : ''}><td>${k + 1} airport${k ? 's' : ''} owned</td><td>$${r}</td></tr>`;
     }).join('');
   } else {
-    rows = `<tr><td>1 utility owned</td><td>4 &times; dice</td></tr><tr><td>2 utilities owned</td><td>10 &times; dice</td></tr>`;
+    const n = o ? Engine.countOwned(S, o.by, 'UTL') : 0;
+    rows = UTILITY_MULT.map((m, k) =>
+      `<tr${n === k + 1 ? ' class="hl"' : ''}><td>${k + 1} compan${k ? 'ies' : 'y'} owned</td><td>${m} &times; dice</td></tr>`).join('');
   }
 
   const houseCost = t.type === 'property' ? GROUPS[t.group].house : null;
@@ -3833,22 +3006,20 @@ function avatarNode(p) {
   return a;
 }
 
-/* Who you are and which board you are looking at: the two things you
-   change about your own screen rather than about the game, so they sit
-   together above everything the game owns. */
-function renderViewChip(slot) {
-  const chip = settled(el('div', 'card roomchip viewchip'), 'viewchip');
+/* Who you are — the one thing on this panel you change about your own
+   screen rather than about the game, so it sits above everything the game
+   owns. It shared the chip with a board switcher until the board it
+   switched to was removed. */
+function renderAccountChip(slot) {
   const who = Account.name();
-  if (who) chip.appendChild(el('div', 'acctchip', `<i></i>${esc(who)}`));
-  const b = el('button', 'btn', VIEW === '2d' ? '🧊 3D board' : '🀫 Flat board');
-  b.title = VIEW === '2d' ? 'Switch to the 3D board' : 'Switch to the flat 2D board';
-  b.onclick = () => { Sfx.click(); setView(VIEW === '2d' ? '3d' : '2d'); };
-  chip.appendChild(b);
+  if (!who) return;
+  const chip = settled(el('div', 'card roomchip viewchip'), 'viewchip');
+  chip.appendChild(el('div', 'acctchip', `<i></i>${esc(who)}`));
   slot.appendChild(chip);
 }
 
 function renderPlayerPanel(slot) {
-  renderViewChip(slot);
+  renderAccountChip(slot);
 
   // hosts keep the invite handy: latecomers and reconnects both need it
   if (net && net.mode === 'host') {
@@ -4141,8 +3312,6 @@ function renderPrompt(slot) {
   slot.appendChild(box);
 }
 
-function is3D() { return Board === Board3D && Board3D.ready; }
-
 /* ---------- teams ---------- */
 
 function myTeam() {
@@ -4160,27 +3329,13 @@ function teamBadge(playerId) {
   return b;
 }
 
-window.addEventListener('resize', () => { if (Board === Board2D && Board2D.ready) Board2D.resize(); });
+window.addEventListener('resize', () => { if (Board.ready) Board.resize(); });
 
-async function applyView() {
+async function mountBoard() {
   const host = $('#scene');
-  if (Board.ready) { Board.resize(); Board.update(); return true; }
-  host.classList.remove('failed');
-  if (Board === Board3D) host.classList.add('loading');
-  const ok = await Board.mount(host);
-  host.classList.remove('loading');
-  if (!ok) {
-    // No WebGL is not a dead end any more: the flat board needs none.
-    const why = Board3D.error() || 'WebGL is unavailable.';
-    VIEW = '2d';
-    localStorage.setItem('mogul.view', '2d');
-    Board = Board2D;
-    await Board2D.mount(host);
-    toast('3D unavailable — switched to the flat board');
-    Engine.log(S, 'The 3D board could not start (' + esc(why) + ') — playing on the flat board');
-  }
+  if (Board.ready) { Board.resize(); Board.update(); return; }
+  await Board.mount(host);
   if (S.phase !== 'lobby') render();
-  return true;
 }
 
 function actorId() {
@@ -5190,6 +4345,22 @@ function teamsPanel() {
         pick.appendChild(b);
       });
       card.appendChild(pick);
+
+      /* A team wears one colour and every member plays in it, so this is the
+         one thing on the card that decides whether the board can be read at
+         a glance. A colour another team already wears is not on offer. */
+      const cols = el('div', 'colorpick');
+      TEAM_COLORS.forEach(c => {
+        const taken = S.teams.some(x => x.id !== t.id && x.color === c);
+        const b = el('button', t.color === c ? 'sel' : '');
+        b.style.background = c;
+        b.disabled = taken;
+        b.style.opacity = taken ? .25 : 1;
+        b.title = taken ? 'Another team plays in this colour' : '';
+        b.onclick = () => send({ type: 'renameTeam', team: t.id, color: c }, asCaptain);
+        cols.appendChild(b);
+      });
+      card.appendChild(cols);
     }
   });
 
@@ -5554,9 +4725,8 @@ function boot() {
   Account.init();
   MY_ID = S.players[0].id;
   Sfx.init();
-  bindBoard(Board3D);
-  bindBoard(Board2D);
-  applyView();
+  bindBoard(Board);
+  mountBoard();
   renderLobby();
   window.addEventListener('hashchange', () => { if (!net) renderLobby(); });
   window.addEventListener('beforeunload', () => {
@@ -6595,9 +5765,7 @@ const Net = (() => {
 window.MOGUL = {
   get S(){return S}, set S(v){S=v},
   get MY_ID(){return MY_ID}, get LOCAL_ALL(){return LOCAL_ALL},
-  Engine, Net, Account, Board3D, Board2D, act,
-  get Board(){return Board}, get VIEW(){return VIEW}, setView,
-  applyView, is3D,
+  Engine, Net, Account, Board, act,
   syncPieces, render, renderHUD, actorId, openTrade, closeModal, focusProperty, renderMyProperties,
   BOARD, GROUPS, PLAYER_COLORS, SETTINGS_META, Sfx,
 };

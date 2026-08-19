@@ -1,6 +1,6 @@
 # MOGUL
 
-Jeu de plateau web, en 3D ou à plat. Un seul fichier : `index.html`.
+Jeu de plateau web. Un seul fichier : `index.html`.
 
 ---
 
@@ -123,9 +123,11 @@ Sur le plateau à plat, la barre du bas flotte *à l'intérieur* de l'anneau,
 là où seraient les dés sur une vraie table : le plateau prend alors toute la
 hauteur de la fenêtre au lieu de s'arrêter au-dessus de la barre.
 
-Survoler un joueur assombrit le plateau sauf ses propriétés. Survoler une case
-allume son pays sans assombrir. Cliquer une case fait clignoter sa ligne dans
-le panneau de droite.
+Survoler un joueur assombrit le plateau sauf ses propriétés, et survoler un
+pays dans le panneau de droite allume ses cases sans assombrir le reste.
+Survoler une case du plateau, en revanche, ne l'allume pas : elle prend un
+simple filet clair, et c'est le titre de propriété qui s'ouvre au-dessus qui
+répond vraiment. Cliquer une case fait clignoter sa ligne dans le panneau.
 
 Dans le journal, le mot **trade** en ambre est survolable : il rouvre les
 termes exacts de l'échange, même longtemps après.
@@ -136,20 +138,62 @@ termes exacts de l'échange, même longtemps après.
 Inde, Italie, Allemagne, Chine, France, Japon, Royaume-Uni, États-Unis — quatre
 aéroports et trois compagnies (électricité, gaz, eau).
 
+Les compagnies s'empilent, comme les aéroports : **×4 les dés** avec une,
+**×10** avec deux, **×15** avec les trois. En équipe, elles comptent ensemble —
+deux alliés qui en tiennent trois à eux deux facturent au tarif du haut.
+
+La case **Earnings Tax** prend 10 % de ce qu'il y a dans le portefeuille, et
+rien d'autre : ni les terrains, ni les maisons. Avant, elle taxait la fortune
+entière, ce qui faisait payer des milliers au joueur en tête. La **Premium
+Tax**, elle, reste à 75 $ pour tout le monde.
+
 Le Maroc, ce sont Casablanca, Marrakech et Rabat, avec l'aéroport CMN juste à
 côté.
 
-Le pays est un dégradé doux qui entre par le bord extérieur et meurt avant le
-milieu de la case. **La seule couleur franche du plateau, c'est un titre de
-propriété** : dès que quelqu'un achète, une barre nette de sa couleur apparaît
-sur le bord extérieur. Tant que la case est libre, il n'y a qu'une teinte.
+Chaque case se lit du bord extérieur vers l'intérieur, toujours dans le même
+ordre : **le prix**, puis **le nom**, puis **le drapeau** — une pastille ronde
+posée sur le bord intérieur, assez grosse pour reconnaître le pays d'un coup
+d'œil depuis l'autre bout de la table.
+
+**La couleur d'une case, c'est son drapeau.** Le même drapeau est repris derrière
+la carte, agrandi et flouté jusqu'à n'être plus que ses couleurs — le vert et le
+rouge de l'Italie, le blanc et le carmin du Japon — puis éteint avant d'atteindre
+le nom. Ça dit à quelle série appartient une case plus vite qu'un aplat, et ça ne
+peut pas être confondu avec la couleur d'un joueur. Le lavis est volontairement
+sombre : à pleine lumière, la moitié blanche du drapeau italien transformait le
+milieu de la carte en page blanche et le nom disparaissait dessus.
+
+Les cases sans pays — aéroports, compagnies, taxes, coffres — portent une icône
+**dessinée**, pas un emoji : un emoji est une image différente sur chaque machine,
+plusieurs n'existent pas du tout sous Windows, et il n'y en avait pas deux de la
+même graisse.
+
+**La seule couleur franche du plateau, c'est un titre de propriété** : dès que
+quelqu'un achète, une barre nette de sa couleur apparaît sur le bord extérieur.
+Tant que la case est libre, il n'y a qu'une teinte. Quand des maisons sortent,
+elles prennent la place du prix — une seule chose par bord.
+
+Aéroports et compagnies ont leur propre fond, bleu, pour se distinguer des
+pays sans leur voler leur couleur.
 
 Une propriété hypothéquée devient grise, se hachure, et affiche MORTGAGED sur
 sa barre de propriétaire.
 
+Avec le réglage **Vacation cash**, la case **Vacation** garde tout ce que la
+banque encaisse jusqu'à ce que quelqu'un tombe dessus. Le montant s'affiche sur
+la case elle-même, en vert : une cagnotte qu'on ne voit pas est une cagnotte
+pour laquelle personne ne joue. La pastille disparaît une fois la cagnotte
+remportée — un « 0 $ » affiché se lirait comme « il n'y a rien à gagner »
+plutôt que comme « il n'y a rien ici ».
+
+En prison, on continue de toucher ses loyers. Le réglage **Don't collect rent
+while in prison** existe toujours mais arrive décoché : une cellule doit coûter
+des tours, pas des revenus. Perdre les deux d'un coup faisait de la prison la
+seule case capable de décider une partie à elle seule.
+
 Rien dans le code ne compte les cases à la main : la taille de l'anneau est
 déduite des données (`TILES`, `PER_SIDE`, `CORNER_AT`), donc changer la carte
-ne demande pas de retoucher le moteur ni les deux plateaux.
+ne demande pas de retoucher le moteur.
 
 ## Les enchères en direct
 
@@ -171,35 +215,30 @@ Sur une offre reçue, à côté d'**Accepter** et **Refuser**, il y a
 déjà remplie. Tu changes ce que tu veux, tu renvoies — l'offre d'origine est
 retirée au passage, donc une seule proposition reste sur la table à la fois.
 
-## Deux vues, un seul plateau
+## Pourquoi le plateau est à plat
 
-Bouton **🀫 Flat board** / **🧊 3D board** en bas au centre :
+À plat, comme sur richup.io : lisible d'un coup d'œil, et ça tourne sans carte
+graphique — ni WebGL, ni accélération matérielle, même sur un téléphone.
 
-- **3D** — le plateau posé sur une table, en volume.
-- **2D** — le plateau à plat, comme sur richup.io : plus lisible, et ça tourne
-  sans carte graphique.
-
-Le choix est mémorisé. Les deux vues répondent aux mêmes appels et une seule
-est montée à la fois — survol, surbrillance et déplacements n'ont jamais deux
-propriétaires. Chacun choisit la sienne : ça n'a aucun effet sur la partie, tu
-peux être en 3D pendant que tes potes sont à plat.
-
-Et si la 3D ne démarre pas (accélération matérielle coupée), le jeu bascule
-tout seul sur le plateau à plat au lieu d'afficher une erreur.
+Il a existé une vue 3D en volume à côté, avec un bouton pour basculer. Personne
+ne s'en servait, elle est partie.
 
 ## Le mode équipes
 
 Réglage de room, **désactivé par défaut** : coche **Teams** dans les réglages
 avant de lancer. Chacun crée une équipe ou rejoint une équipe existante, avec
-son nom et son emoji. Deux équipes, trois, ou une bande contre un loup
-solitaire — un joueur sans équipe est un camp à lui tout seul. **Une fois la
+son nom, son emoji et sa couleur. Deux équipes, trois, ou une bande contre un
+loup solitaire — un joueur sans équipe est un camp à lui tout seul. Une
+nouvelle équipe prend une couleur libre, jamais celle d'une autre, et la
+pastille d'une couleur déjà portée est grisée dans le sélecteur. **Une fois la
 partie lancée, les alliances sont figées** : le moteur refuse tout changement
 d'équipe hors du lobby.
 
 **Qui touche à quoi.** Celui qui crée l'équipe en est le chef — une couronne 👑
-à côté de son nom — et **lui seul** en change le nom et l'emoji ; les autres
-voient le nom écrit, pas un champ. Avant, n'importe quel membre pouvait le
-retaper : à quatre sur le même champ, chaque lettre écrasait celle du voisin.
+à côté de son nom — et **lui seul** en change le nom, l'emoji et la couleur ;
+les autres voient le nom écrit, pas un champ. Avant, n'importe quel membre
+pouvait le retaper : à quatre sur le même champ, chaque lettre écrasait celle
+du voisin.
 Si le chef quitte l'équipe, se fait éjecter ou perd sa connexion, la couronne
 passe au membre suivant.
 
@@ -231,9 +270,9 @@ la main avec les boutons **+ Pseudo** de chaque équipe.
 ## Les apparences
 
 Cinq formes de pion : la boule classique, un citron, une fraise, une flamme et
-un tourbillon. Chacune existe en vraie géométrie 3D sur le plateau, en pion à
-plat sur le plateau 2D, et en icône assortie dans le lobby — les trois montrent
-toujours la même chose. Couleur et forme se choisissent séparément.
+un tourbillon. Chacune existe en pion sur le plateau et en icône assortie dans
+le lobby — les deux montrent toujours la même chose. Couleur et forme se
+choisissent séparément.
 
 ## Le son
 
@@ -248,7 +287,5 @@ Console du navigateur :
 - `MOGUL.S` — l'état complet de la partie
 - `MOGUL.S.log` — le journal, avec le détail des échanges
 - `MOGUL.act({type:'roll'})` — déclencher une action à la main
-- `MOGUL.Board3D.Layout` — la géométrie du plateau
-- `MOGUL.setView('2d')` — changer de vue à la main
-- `MOGUL.Board` — la vue actuellement montée
+- `MOGUL.Board` — le plateau monté
 - `MOGUL.S.teams` — les équipes, `MOGUL.S.chat` — les messages
