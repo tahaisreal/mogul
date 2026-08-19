@@ -77,19 +77,15 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-2);
 .centerturn{font-size:15px;font-weight:800;display:flex;align-items:center;gap:8px;justify-content:center}
 .centerlog{display:flex;flex-direction:column;gap:4px;width:100%;overflow:hidden}
 .centerlog div{font-size:12.5px;line-height:1.45;animation:logIn .3s var(--ease)}
-/* The middle of the 3D board is pale felt and the flat one is dark, so the
-   same lines are printed dark on one and light on the other. */
-#hud .centerturn{color:#1d1712;text-shadow:0 1px 7px rgba(255,255,255,.7)}
-#hud .centerlog div{color:#2b241d;text-shadow:0 1px 6px rgba(255,255,255,.65)}
-#hud .centerlog div .ltag,#hud .centerturn .ltag{color:#12100d}
-#hud .centerlog .ltile{color:#42352a}
-#hud.flatview .centerlog .ltile{color:#cfcbee}
-#hud.flatview .centerturn{color:var(--ink);text-shadow:0 2px 10px rgba(0,0,0,.8)}
-#hud.flatview .centerlog div{color:#cdbcab;text-shadow:0 1px 8px rgba(0,0,0,.85)}
-#hud.flatview .centerlog div .ltag,#hud.flatview .centerturn .ltag{color:#f0e6da}
+/* Printed light, because the middle of the board is dark. There used to be a
+   second set of these in dark ink, for when the 3D board put pale felt in the
+   middle instead; the felt went with it. */
+#hud .centerlog .ltile{color:#cfcbee}
+#hud .centerturn{color:var(--ink);text-shadow:0 2px 10px rgba(0,0,0,.8)}
+#hud .centerlog div{color:#cdbcab;text-shadow:0 1px 8px rgba(0,0,0,.85)}
+#hud .centerlog div .ltag,#hud .centerturn .ltag{color:#f0e6da}
 .centerlog div .lref{pointer-events:auto}
-#hud.flatview .centerlog div:nth-child(1){color:#f0e6da}
-#hud .centerlog div:nth-child(1){color:#14110d}
+#hud .centerlog div:nth-child(1){color:#f0e6da}
 .centerlog div:nth-child(n+4){opacity:.72}
 .centerlog div:nth-child(n+6){opacity:.46}
 .centerlog div:nth-child(n+8){opacity:.24}
@@ -365,6 +361,7 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-2);
    tile without ever competing with a player's colour. The block is pushed
    past the edge so only its inner side is allowed to fade. */
 #scene.flat{display:flex;align-items:center;justify-content:center;background:radial-gradient(120% 90% at 50% 0%, #16142a 0%, #0a0914 70%);overflow:hidden}
+/* the class marks a mounted board, which is what --barlift depends on */
 #hud.flatview .hud-slot.bc{bottom:var(--barlift,18px)}
 #scene.flat #board{transform:none}
 #scene.flat #center{justify-content:flex-start;padding-top:5%}
