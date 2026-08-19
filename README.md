@@ -82,6 +82,24 @@ adresse collée dans **⚙ Use a relay server**, le lien d'invitation l'embarque
   tout à la banque — cases libérées, argent effacé — et la partie continue
   sans toi. Deux clics, il n'y a pas de retour en arrière.
 
+### À huit qui écrivent en même temps
+
+L'hôte n'envoie plus toute la partie à chaque fois que quelqu'un fait quelque
+chose. Il compare son état morceau par morceau et n'envoie que ce qui a
+vraiment bougé : une ligne de chat pèse une ligne de chat, pas les 48 cases,
+les 8 sièges, le journal et le paquet de cartes. Le journal et le chat, qui
+s'allongent au lieu de changer, partent en « ce qui vient de s'ajouter ». Sur
+une partie bien avancée, ça fait **~95 % de trafic en moins**, et 99 % pour un
+message de chat.
+
+Côté écran, tout ce qui arrive dans la même image est dessiné une seule fois :
+128 messages envoyés à la volée, c'est douze redessins au lieu de cent
+vingt-huit.
+
+Chaque envoi porte un numéro. Si un navigateur en rate un — coupure, wifi
+d'hôtel — il le voit tout de suite et redemande la partie entière au lieu de
+continuer sur un plateau à moitié faux.
+
 Aucun serveur à payer : GitHub Pages ne sert que le fichier, et le canal des
 rooms tourne sur des brokers publics gratuits.
 
@@ -177,6 +195,18 @@ son nom et son emoji. Deux équipes, trois, ou une bande contre un loup
 solitaire — un joueur sans équipe est un camp à lui tout seul. **Une fois la
 partie lancée, les alliances sont figées** : le moteur refuse tout changement
 d'équipe hors du lobby.
+
+**Qui touche à quoi.** Celui qui crée l'équipe en est le chef — une couronne 👑
+à côté de son nom — et **lui seul** en change le nom et l'emoji ; les autres
+voient le nom écrit, pas un champ. Avant, n'importe quel membre pouvait le
+retaper : à quatre sur le même champ, chaque lettre écrasait celle du voisin.
+Si le chef quitte l'équipe, se fait éjecter ou perd sa connexion, la couronne
+passe au membre suivant.
+
+**L'hôte de la room** a un **✕** sur chaque carte d'équipe : il la dissout, et
+ses membres repartent chacun de leur côté, sièges et couleurs intacts. C'est
+sans retour, alors le bouton demande une fois — il devient *Delete?*, et
+redevient ✕ tout seul si on ne confirme pas.
 
 Ce que ça change sur le plateau :
 

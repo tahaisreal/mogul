@@ -382,6 +382,7 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent-2);
 .teamcard .tmember{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);font-weight:700}
 .teamcard .tmember i{width:9px;height:9px;border-radius:50%;display:inline-block}
 .teamcard .tmember svg{width:14px;height:14px;display:block;flex:0 0 14px}
+.teamcard .mini.armed{background:var(--bad);color:#2a1210}
 .teamcard input{
   background:var(--panel-3);border:1px solid var(--line);border-radius:8px;color:var(--ink);
   font:700 13px/1.2 var(--ui);padding:5px 7px;width:100%;
@@ -1285,6 +1286,18 @@ const Engine = (() => {
   const teamMates = (s, playerId) => s.players.filter(p => p.id !== playerId && sameSide(s, p.id, playerId));
   const findTeam = (s, id) => s.teams.find(t => t.id === id) || null;
 
+  /* A team belongs to whoever started it: they name it, and nobody else
+     does. So the captaincy must never be left on an empty chair — somebody
+     leaving, being kicked or losing their connection hands it to the next
+     member, and a team nobody is on at all stops being a team. */
+  function tidyTeams(s) {
+    s.teams = s.teams.filter(t => s.players.some(p => p.team === t.id));
+    s.teams.forEach(t => {
+      const members = s.players.filter(p => p.team === t.id);
+      if (!members.some(p => p.id === t.owner)) t.owner = members[0].id;
+    });
+  }
+
   /* One side, one colour — and in teams mode that colour is the team's.
      Teammates are told apart by their shape, never by their hue: two players
      wearing two different greens is what made the last board unreadable.
@@ -1969,6 +1982,7 @@ const Engine = (() => {
         const host = s.players[0];
         if (!host || host.id !== playerId) break;
         s.players = s.players.filter(p => p.id !== a.target);
+        tidyTeams(s);
         break;
       }
 
@@ -1983,6 +1997,7 @@ const Engine = (() => {
           name: String(a.name || 'Team ' + (s.teams.length + 1)).slice(0, 16),
           emoji,
           color: TEAM_COLORS[s.teams.length % TEAM_COLORS.length],
+          owner: playerId,          // the captain: the only one who can rename it
         };
         s.teams.push(team);
         me.team = team.id;
@@ -1994,6 +2009,7 @@ const Engine = (() => {
         const team = findTeam(s, a.team);
         if (!team) break;
         me.team = team.id;
+        if (!team.owner) team.owner = playerId;   // a team whose captain vanished
         // teammates share a colour, so they must not also share a silhouette
         const worn = s.players.filter(p => p.id !== playerId && p.team === team.id).map(p => p.shape);
         if (worn.includes(me.shape)) me.shape = SHAPES.find(sh => !worn.includes(sh)) || me.shape;
@@ -2003,16 +2019,35 @@ const Engine = (() => {
       case 'leaveTeam': {
         if (s.phase !== 'lobby' || !s.settings.teams) break;
         me.team = null;
-        // a team nobody is on any more is not a team
-        s.teams = s.teams.filter(t => s.players.some(p => p.team === t.id));
+        tidyTeams(s);
         break;
       }
       case 'renameTeam': {
         if (s.phase !== 'lobby' || !s.settings.teams) break;
         const team = findTeam(s, a.team || me.team);
-        if (!team || me.team !== team.id) break;
+        if (!team) break;
+        /* One field, one owner. Every member used to be able to retype the
+           name, so a team of four could fight over it letter by letter —
+           each keystroke overwriting the other three across the room. */
+        if (!team.owner && me.team === team.id) team.owner = playerId;
+        if (team.owner !== playerId) break;
         if (a.name) team.name = String(a.name).slice(0, 16);
         if (a.emoji && TEAM_EMOJI.includes(a.emoji)) team.emoji = a.emoji;
+        break;
+      }
+
+      /* The room's host holds the door. A team formed by mistake, or one
+         nobody wants, is theirs to clear away: its members land back on
+         their own, seats and colours untouched. */
+      case 'disbandTeam': {
+        if (s.phase !== 'lobby' || !s.settings.teams) break;
+        const host = s.players[0];
+        if (!host || host.id !== playerId) break;
+        const team = findTeam(s, a.team);
+        if (!team) break;
+        s.players.forEach(p => { if (p.team === team.id) p.team = null; });
+        s.teams = s.teams.filter(t => t.id !== team.id);
+        log(s, `${tag(s, playerId)} disbanded ${team.emoji} <b>${esc(team.name)}</b>`);
         break;
       }
       case 'chat': {
@@ -2072,7 +2107,7 @@ const Engine = (() => {
 
   return {
     AUCTION_MS, BID_STEPS,
-    teamOf, sideOf, sameSide, teamMates, findTeam, colorOf,
+    teamOf, sideOf, sameSide, teamMates, findTeam, tidyTeams, colorOf,
     createState, addPlayer, applyAction, startGame,
     P, current, alive, ownerOf, ownsFullSet, countOwned, netWorth, rentFor,
     canBuild, canSell, liquidValue, autoLiquidate, groupTiles, clone, rid, esc, log,
@@ -5033,7 +5068,15 @@ function drawLobby() {
 }
 
 /* Alliances are formed here and nowhere else: once the game starts the
-   engine refuses every team action, so the lobby is the whole negotiation. */
+   engine refuses every team action, so the lobby is the whole negotiation.
+
+   Two hands only ever touch a team card: its captain, who named it, and
+   the room's host, who can clear it away. Everyone else joins and leaves. */
+
+/* Disbanding a team drops everyone on it back to playing alone, and there
+   is no undo — so the ✕ asks once before it does anything. */
+let disbandArm = null, disbandTimer = null;
+
 function teamsPanel() {
   const card = el('div', 'card teambox'); card.style.width = '300px';
   card.appendChild(el('h3', '', 'Teams'));
@@ -5042,6 +5085,7 @@ function teamsPanel() {
 
   const me = MY_ID ? Engine.P(S, MY_ID) : S.players[0];
   const hotSeat = !net;
+  const iHost = !net || (S.players[0] && S.players[0].id === MY_ID);
   const send = (action, who) => {
     if (net && net.mode === 'guest') net.send(action);
     else { act(action, who || (me ? me.id : null)); renderLobby(); }
@@ -5049,27 +5093,36 @@ function teamsPanel() {
 
   S.teams.forEach(t => {
     const mine = me && me.team === t.id;
+    /* Around one screen every seat is this browser's, so the captain's
+       field stays open — it just speaks in the captain's name. */
+    const captain = hotSeat ? true : !!(me && t.owner === me.id);
+    const asCaptain = hotSeat ? t.owner : null;
     const row = el('div', 'teamcard' + (mine ? ' mine' : ''));
     row.style.setProperty('--tcol', t.color);
     row.appendChild(el('div', 'temoji', t.emoji));
 
     const mid = el('div', ''); mid.style.flex = '1'; mid.style.minWidth = '0';
-    if (mine) {
+    if (captain) {
       const inp = el('input');
       inp.type = 'text'; inp.maxLength = 16; inp.value = t.name;
       inp.dataset.keep = 'team:' + t.id;
       const key = 'team:' + t.id;
       inp.oninput = () => debounced(key, 400, () => {
         const live = liveField(key);
-        send({ type: 'renameTeam', team: t.id, name: live ? live.value : inp.value });
+        send({ type: 'renameTeam', team: t.id, name: live ? live.value : inp.value }, asCaptain);
       });
       mid.appendChild(inp);
     } else {
-      mid.appendChild(el('div', 'tname', esc(t.name)));
+      const nm = el('div', 'tname', esc(t.name));
+      const cap = S.players.find(p => p.id === t.owner);
+      if (mine && cap) nm.title = `${cap.name} named this team — only they can rename it`;
+      mid.appendChild(nm);
     }
     const members = el('div', 'tmembers');
     S.players.filter(p => p.team === t.id).forEach(p => {
-      const m = el('span', 'tmember', `${SHAPE_ICONS[p.shape || 'blob'](t.color)}${esc(p.name)}`);
+      const crown = p.id === t.owner ? ' 👑' : '';
+      const m = el('span', 'tmember', `${SHAPE_ICONS[p.shape || 'blob'](t.color)}${esc(p.name)}${crown}`);
+      if (p.id === t.owner) m.title = 'Captain — names the team';
       if (hotSeat) {
         const x = el('button', 'mini bad', '✕');
         x.style.cssText = 'padding:0 4px;font-size:9px;line-height:1.4';
@@ -5086,6 +5139,28 @@ function teamsPanel() {
       const btn = el('button', 'mini' + (mine ? ' bad' : ''), mine ? 'Leave' : 'Join');
       btn.onclick = () => { Sfx.click(); send(mine ? { type: 'leaveTeam' } : { type: 'joinTeam', team: t.id }); };
       row.appendChild(btn);
+    }
+
+    if (iHost) {
+      const armed = disbandArm === t.id;
+      const del = el('button', 'mini bad' + (armed ? ' armed' : ''), armed ? 'Delete?' : '✕');
+      del.title = 'Disband this team';
+      // around one screen the members carry a ✕ of their own: keep them apart
+      del.style.marginLeft = '4px';
+      del.onclick = () => {
+        Sfx.click();
+        if (!armed) {
+          disbandArm = t.id;
+          clearTimeout(disbandTimer);
+          disbandTimer = setTimeout(() => { disbandArm = null; if (S.phase === 'lobby') renderLobby(); }, 4000);
+          renderLobby();
+          return;
+        }
+        clearTimeout(disbandTimer);
+        disbandArm = null;
+        send({ type: 'disbandTeam', team: t.id }, S.players[0] ? S.players[0].id : null);
+      };
+      row.appendChild(del);
     }
     card.appendChild(row);
 
@@ -5104,14 +5179,14 @@ function teamsPanel() {
       }
     }
 
-    if (mine) {
+    if (captain) {
       const pick = el('div', 'emojipick');
       TEAM_EMOJI.forEach(e => {
         const taken = S.teams.some(x => x.id !== t.id && x.emoji === e);
         const b = el('button', t.emoji === e ? 'sel' : '', e);
         b.disabled = taken;
         b.style.opacity = taken ? .3 : 1;
-        b.onclick = () => send({ type: 'renameTeam', team: t.id, emoji: e });
+        b.onclick = () => send({ type: 'renameTeam', team: t.id, emoji: e }, asCaptain);
         pick.appendChild(b);
       });
       card.appendChild(pick);
@@ -5423,6 +5498,29 @@ function settingsColumn(readOnly) {
 /* ============================================================
    RENDER + BOOT
    ============================================================ */
+
+/* Eight browsers in a room means state arrives in bursts: a chat line, a
+   rename, a roll, three more chat lines, all inside the same few
+   milliseconds. Painting each arrival is work nobody ever sees — the screen
+   can only show the last one. Everything that lands in the same frame is
+   painted once, so a room of eight costs about what a room of two costs.
+
+   Somebody arriving or leaving must never re-open the lobby on top of a
+   game in progress either: once the dice are rolling, their arrival changes
+   exactly one thing on screen — the "N connected" chip. */
+let paintQueued = false;
+function paint() {
+  if (paintQueued) return;
+  paintQueued = true;
+  requestAnimationFrame(() => { paintQueued = false; paintNow(); });
+}
+function paintNow() {
+  if (typeof S === 'undefined' || !S) return;
+  if (S.phase === 'lobby') return renderLobby();
+  const stale = document.querySelector('#lobby');
+  if (stale) stale.remove();
+  render();
+}
 
 function render() {
   if (S.phase === 'lobby') { renderLobby(); return; }
@@ -5768,16 +5866,7 @@ const Net = (() => {
     if (typeof S !== 'undefined' && S && S.phase === 'lobby') renderLobby();
   }
 
-  /* Somebody arriving, leaving or reconnecting must never re-open the lobby
-     on top of a game in progress. Once the dice are rolling their arrival
-     changes exactly one thing on screen: the "N connected" chip. */
-  function refresh() {
-    if (typeof S === 'undefined' || !S) return;
-    if (S.phase === 'lobby') return renderLobby();
-    const stale = document.querySelector('#lobby');
-    if (stale) stale.remove();
-    renderHUD();
-  }
+  const refresh = () => paint();
 
   function relayURL() {
     const q = new URLSearchParams(location.search).get('relay');
@@ -5806,6 +5895,7 @@ const Net = (() => {
           seatBack.name = name;
         }
         send(peerId, { t: 'you', id: seatBack.id });
+        sendSnapshot(peerId);
         refresh();
         return broadcast();
       }
@@ -5827,9 +5917,13 @@ const Net = (() => {
       seatByPeer.set(peerId, seat);
       if (uid) seatByUid.set(uid, seat);
       send(peerId, { t: 'you', id: seat });
+      sendSnapshot(peerId);
       refresh();
       return broadcast();
     }
+
+    // a guest that spotted a gap in the patches: start it over from whole
+    if (msg.t === 'resync') return sendSnapshot(peerId);
 
     if (msg.t === 'action') {
       const seat = seatByPeer.get(peerId);
@@ -5842,8 +5936,7 @@ const Net = (() => {
          the browser key in that hello puts them straight back in their seat. */
       if (!seat) return send(peerId, { t: 'whoareyou' });
       Engine.applyAction(S, seat, msg.action);   // the host is the referee
-      if (S.phase === 'lobby') renderLobby();
-      else { const l = document.querySelector('#lobby'); if (l) l.remove(); render(); }
+      paint();
       broadcast();
     }
   }
@@ -5855,6 +5948,7 @@ const Net = (() => {
     if (!seat) return;
     if (S.phase === 'lobby') {
       S.players = S.players.filter(p => p.id !== seat);
+      Engine.tidyTeams(S);
       refresh();
     } else {
       Engine.log(S, 'A player lost connection — their seat is held until they reopen the link');
@@ -5863,31 +5957,121 @@ const Net = (() => {
     broadcast();
   }
 
-  /* Eight browsers in a room means every keystroke that reaches the host is
-     answered with the whole game state — and a table renaming its teams
-     produces a lot of those. A burst is collapsed into one send on the next
-     tick; the state is complete each time, so only the last one matters. */
+  /* ---------- what actually goes down the wire ----------
+
+     Every keystroke that reached the host used to be answered with the
+     entire game state: forty-eight tiles, every seat, the log, the chat,
+     the deck. Eight people typing at once meant eight browsers each pulling
+     all of that down several times a second, and it showed.
+
+     The state is compared key by key instead, and only the keys that really
+     changed go out. A chat line is a chat line; a team being renamed is one
+     short array. The log and the chat grow rather than change, so they
+     travel as the lines that were added plus how many fell off the front —
+     both are capped, so they scroll.
+
+     A patch carries whole values, never increments, so a browser that
+     joined a second ago and got the full state can apply the next patch on
+     top without knowing what it missed. The counter on each patch is only
+     there to catch a gap: a guest that sees one asks for the state again
+     rather than quietly drifting out of sync. */
+  const BROADCAST_MS = 60;
+  const sentJSON = new Map();      // key -> the JSON everybody already holds
+  let stateSeq = 0;
+
+  /* The whole thing, for somebody who has nothing. The baseline is left
+     alone: it is still what the others hold, and this newcomer is if
+     anything ahead of them, which the next patch harmlessly re-states. */
+  const sendSnapshot = (peerId) => send && send(peerId, { t: 'state', v: stateSeq, state: S });
+
+  function tailOf(oldArr, newArr, oldJSON) {
+    for (let d = 0; d <= Math.min(8, oldArr.length); d++) {
+      const kept = oldArr.length - d;
+      if (kept > newArr.length) continue;
+      const same = d === 0
+        ? JSON.stringify(newArr.slice(0, kept)) === oldJSON
+        : JSON.stringify(oldArr.slice(d)) === JSON.stringify(newArr.slice(0, kept));
+      if (same) return { d, i: newArr.slice(kept) };
+    }
+    return null;                    // reordered or rebuilt: send the lot
+  }
+
+  function patchOf() {
+    const set = {}, add = {};
+    let changed = 0;
+    for (const k in S) {
+      const now = JSON.stringify(S[k]);
+      const was = sentJSON.get(k);
+      if (now === was) continue;
+      sentJSON.set(k, now);
+      changed++;
+      /* Only worth it if it really is shorter than saying the whole thing:
+         an array whose every entry changed dresses up as a drop-and-readd
+         otherwise, which is the same payload with extra steps. */
+      if (was !== undefined && Array.isArray(S[k])) {
+        const tail = tailOf(JSON.parse(was), S[k], was);
+        if (tail && tail.i.length < S[k].length) { add[k] = tail; continue; }
+      }
+      set[k] = S[k];
+    }
+    return changed ? { t: 'patch', v: ++stateSeq, set, add } : null;
+  }
+
+  /* A burst is collapsed into one send on the next tick, and a tick with
+     nothing new to say says nothing at all. */
   let pendingSend = null;
   function broadcast() {
     if (pendingSend) return;
     pendingSend = setTimeout(() => {
       pendingSend = null;
-      if (send) send(null, { t: 'state', state: S });
-    }, 70);
+      if (!send) return;
+      const msg = patchOf();
+      if (msg) send(null, msg);
+    }, BROADCAST_MS);
   }
   api.broadcast = broadcast;
   api.peerCount = () => peers.size;
 
   /* ---------- guest side ---------- */
 
+  let seenSeq = 0, askedAt = 0;
+
   function onHostMessage(msg) {
     if (msg.t === 'you') MY_ID = msg.id;
     if (msg.t === 'whoareyou') return reintroduce();
     if (msg.t === 'refused') return refused(msg.reason);
+
     if (msg.t === 'state') {
       S = msg.state;
-      if (S.phase === 'lobby') renderLobby();
-      else { const l = document.querySelector('#lobby'); if (l) l.remove(); render(); }
+      seenSeq = msg.v || 0;
+      askedAt = 0;
+      return paint();
+    }
+
+    if (msg.t === 'patch') {
+      /* A gap means something was lost between here and the host. Guessing
+         at what was in it is how a board ends up showing a game nobody is
+         playing — ask for the whole thing instead, and sit out the patches
+         that keep arriving meanwhile rather than half-applying them. The
+         ask itself can go missing too, so it is repeated while the gap
+         lasts, just not once per patch. */
+      if (msg.v !== seenSeq + 1) {
+        if (Date.now() - askedAt > 1000) {
+          askedAt = Date.now();
+          if (send) send(null, { t: 'resync' });
+        }
+        return;
+      }
+      askedAt = 0;
+      seenSeq = msg.v;
+      for (const k in msg.set) S[k] = msg.set[k];
+      for (const k in msg.add) {
+        const arr = S[k], tail = msg.add[k];
+        if (!Array.isArray(arr)) continue;
+        if (tail.d) arr.splice(0, tail.d);
+        if (tail.i.length) arr.push.apply(arr, tail.i);
+      }
+      return paint();
     }
   }
 
